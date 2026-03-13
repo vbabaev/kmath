@@ -16,8 +16,16 @@ function generateProblems(counts) {
   const problems = []
   for (const mod of MODULES) {
     const n = counts[mod.id] ?? 0
-    for (let i = 0; i < n; i++) {
-      problems.push({ module: mod, problem: mod.generate() })
+    const seen = new Set()
+    let tries = 0
+    while (problems.filter((p) => p.module === mod).length < n && tries < n * 20) {
+      const problem = mod.generate()
+      const k = mod.key(problem)
+      if (!seen.has(k)) {
+        seen.add(k)
+        problems.push({ module: mod, problem })
+      }
+      tries++
     }
   }
   return shuffle(problems)

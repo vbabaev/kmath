@@ -4,54 +4,75 @@ const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
 
 function defaultIsComplete(value) {
-  return typeof value === 'string' ? value.trim() !== '' : false
+  return typeof value === 'string' && value.trim() !== ''
 }
 
 export default function Quiz({ problems, onFinish, onHome }) {
   const [index, setIndex] = useState(0)
   const [input, setInput] = useState(() => problems[0].module.defaultInput ?? '')
-  const [feedback, setFeedback] = useState(null) // 'correct' | 'wrong' | null
+  const [feedback, setFeedback] = useState(null)       // 'correct' | 'wrong' | null
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
-  const [results, setResults] = useState([])
+  const [problemAttempts, setProblemAttempts] = useState(0)  // attempts on current problem
+  const [totalAttempts, setTotalAttempts] = useState(0)      // all submissions
+  const [completedProblems, setCompletedProblems] = useState([])
   const inputRef = useRef(null)
 
   const { module, problem } = problems[index]
+  const isComplete = module.isComplete ?? defaultIsComplete
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
 
   function submit() {
-    const isComplete = module.isComplete ?? defaultIsComplete
     if (!isComplete(input) || feedback) return
 
+    const newProblemAttempts = problemAttempts + 1
+    const newTotalAttempts = totalAttempts + 1
     const correct = module.check(problem, input)
-    const newStreak = correct ? streak + 1 : 0
-    const bonus = correct && newStreak > 1 ? POINTS_STREAK_BONUS : 0
-    const earned = correct ? POINTS_CORRECT + bonus : 0
-    const newScore = score + earned
-    const newResults = [...results, { correct, earned, module }]
 
-    setFeedback(correct ? 'correct' : 'wrong')
+    setProblemAttempts(newProblemAttempts)
+    setTotalAttempts(newTotalAttempts)
+
+    if (!correct) {
+      setStreak(0)
+      setFeedback('wrong')
+      setTimeout(() => {
+        setFeedback(null)
+        setInput(module.defaultInput ?? '')
+      }, 900)
+      return
+    }
+
+    // Correct — award points only on first try
+    const firstTry = newProblemAttempts === 1
+    const newStreak = firstTry ? streak + 1 : 0
+    const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
+    const earned = firstTry ? POINTS_CORRECT + bonus : 0
+    const newScore = score + earned
+    const newCompleted = [...completedProblems, { module, attempts: newProblemAttempts }]
+
+    setFeedback('correct')
     setScore(newScore)
     setStreak(newStreak)
-    setResults(newResults)
+    setCompletedProblems(newCompleted)
 
     setTimeout(() => {
       const next = index + 1
       setFeedback(null)
+      setProblemAttempts(0)
       setInput(problems[next]?.module.defaultInput ?? '')
       if (next >= problems.length) {
-        onFinish({ score: newScore, streak: newStreak, results: newResults })
+        onFinish({ score: newScore, totalAttempts: newTotalAttempts, completedProblems: newCompleted })
       } else {
         setIndex(next)
       }
     }, 900)
   }
 
-  const isComplete = module.isComplete ?? defaultIsComplete
   const progress = index / problems.length
+  const firstTry = problemAttempts === 0
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
@@ -80,6 +101,9 @@ export default function Quiz({ problems, onFinish, onHome }) {
         </div>
         <p className="text-center text-gray-400 text-sm mb-6">
           {index + 1} / {problems.length} — {module.label} {module.emoji}
+          {problemAttempts > 0 && (
+            <span className="ml-2 text-red-400">({problemAttempts} {problemAttempts === 1 ? 'attempt' : 'attempts'})</span>
+          )}
         </p>
 
         {/* Question card */}
@@ -95,12 +119,14 @@ export default function Quiz({ problems, onFinish, onHome }) {
           <module.View problem={problem} />
           {feedback === 'correct' && (
             <p className="mt-4 text-green-600 font-semibold text-lg">
-              ✓ Correct! +{POINTS_CORRECT}{streak > 1 ? ` +${POINTS_STREAK_BONUS} bonus` : ''}
+              {firstTry
+                ? `✓ Correct! +${POINTS_CORRECT}${streak > 1 ? ` +${POINTS_STREAK_BONUS} bonus` : ''}`
+                : '✓ Correct!'}
             </p>
           )}
           {feedback === 'wrong' && (
             <p className="mt-4 text-red-600 font-semibold text-lg">
-              ✗ Answer: {problem.answerDen === 1 ? problem.answerNum : `${problem.answerNum}/${problem.answerDen}`}{problem.answer !== undefined ? problem.answer : ''}
+              ✗ Not quite — try again!
             </p>
           )}
         </div>

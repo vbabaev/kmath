@@ -20,6 +20,14 @@ function check(problem, input) {
   return parseInt(input.trim(), 10) === problem.answer
 }
 
+function key(problem) {
+  return `${problem.a}*${problem.b}`
+}
+
+function displayAnswer(problem) {
+  return String(problem.answer)
+}
+
 export default {
   id: 'multiplication',
   label: 'Multiplication',
@@ -32,4 +40,6 @@ export default {
   generate,
   View,
   check,
+  key,
+  displayAnswer,
 }

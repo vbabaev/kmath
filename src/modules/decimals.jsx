@@ -28,6 +28,14 @@ function check(problem, input) {
   return parseFloat(input.trim()) === problem.answer
 }
 
+function key(problem) {
+  return `${problem.left}${problem.op}${problem.right}`
+}
+
+function displayAnswer(problem) {
+  return String(problem.answer)
+}
+
 export default {
   id: 'decimals',
   label: 'Decimals',
@@ -40,4 +48,6 @@ export default {
   generate,
   View,
   check,
+  key,
+  displayAnswer,
 }
