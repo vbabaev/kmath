@@ -29,10 +29,14 @@ src/
 Each module in `src/modules/` exports a default object:
 ```js
 {
-  id, label, emoji, color, bgLight, border, description, inputHint,
-  generate(),           // returns a problem object (shape is module-specific)
-  View({ problem }),    // React component — renders the question display
-  check(problem, input) // returns boolean
+  id, label, emoji, color, bgLight, border, description,
+  inputHint,        // optional — placeholder for default text input
+  defaultInput,     // optional — initial input state (default: '')
+  generate(),       // returns a problem object (shape is module-specific)
+  View({ problem }) // React component — renders the question display
+  Input,            // optional — custom input component ({ value, onChange, onSubmit, disabled })
+  isComplete(value) // optional — returns bool (default: value.trim() !== '')
+  check(problem, input) // returns boolean; input type matches defaultInput
 }
 ```
 
@@ -57,7 +61,7 @@ Each module in `src/modules/` exports a default object:
 |----|-------|--------------------|
 | `multiplication` | Multiplication ✖️ | `{ a, b, answer }` |
 | `division` | Division ➗ | `{ dividend, divisor, answer }` |
-| `fractions` | Fractions 🍕 | `{ n1, n2, denom, answer }` (same-denom addition, simplified) |
+| `fractions` | Fractions 🍕 | `{ n1, n2, denom, answerNum, answerDen }` — custom stacked `Input`, checked via cross-multiplication |
 | `decimals` | Decimals 🔢 | `{ left, right, op, answer }` (1-decimal add/subtract) |
 
 ## Pending / To Be Defined

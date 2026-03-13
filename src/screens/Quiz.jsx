@@ -3,24 +3,29 @@ import { useState, useEffect, useRef } from 'react'
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
 
+function defaultIsComplete(value) {
+  return typeof value === 'string' ? value.trim() !== '' : false
+}
+
 export default function Quiz({ problems, onFinish, onHome }) {
   const [index, setIndex] = useState(0)
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(() => problems[0].module.defaultInput ?? '')
   const [feedback, setFeedback] = useState(null) // 'correct' | 'wrong' | null
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [results, setResults] = useState([])
   const inputRef = useRef(null)
 
-  const current = problems[index]
-  const { module, problem } = current
+  const { module, problem } = problems[index]
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
 
   function submit() {
-    if (!input.trim() || feedback) return
+    const isComplete = module.isComplete ?? defaultIsComplete
+    if (!isComplete(input) || feedback) return
+
     const correct = module.check(problem, input)
     const newStreak = correct ? streak + 1 : 0
     const bonus = correct && newStreak > 1 ? POINTS_STREAK_BONUS : 0
@@ -34,16 +39,18 @@ export default function Quiz({ problems, onFinish, onHome }) {
     setResults(newResults)
 
     setTimeout(() => {
+      const next = index + 1
       setFeedback(null)
-      setInput('')
-      if (index + 1 >= problems.length) {
+      setInput(problems[next]?.module.defaultInput ?? '')
+      if (next >= problems.length) {
         onFinish({ score: newScore, streak: newStreak, results: newResults })
       } else {
-        setIndex((i) => i + 1)
+        setIndex(next)
       }
     }, 900)
   }
 
+  const isComplete = module.isComplete ?? defaultIsComplete
   const progress = index / problems.length
 
   return (
@@ -93,26 +100,35 @@ export default function Quiz({ problems, onFinish, onHome }) {
           )}
           {feedback === 'wrong' && (
             <p className="mt-4 text-red-600 font-semibold text-lg">
-              ✗ Answer: {problem.answer}
+              ✗ Answer: {problem.answerDen === 1 ? problem.answerNum : `${problem.answerNum}/${problem.answerDen}`}{problem.answer !== undefined ? problem.answer : ''}
             </p>
           )}
         </div>
 
-        {/* Input */}
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          disabled={!!feedback}
-          placeholder={module.inputHint ?? 'Your answer…'}
-          className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 text-xl text-center focus:outline-none focus:border-indigo-400 mb-4 disabled:opacity-50"
-        />
+        {/* Input — custom per module or default text */}
+        {module.Input ? (
+          <module.Input
+            value={input}
+            onChange={setInput}
+            onSubmit={submit}
+            disabled={!!feedback}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            disabled={!!feedback}
+            placeholder={module.inputHint ?? 'Your answer…'}
+            className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 text-xl text-center focus:outline-none focus:border-indigo-400 mb-4 disabled:opacity-50"
+          />
+        )}
 
         <button
           onClick={submit}
-          disabled={!!feedback || !input.trim()}
+          disabled={!!feedback || !isComplete(input)}
           className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-2xl text-lg hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-default"
         >
           Check Answer
