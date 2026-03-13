@@ -13,42 +13,63 @@ src/
   App.jsx              # Root — screen state machine (home/quiz/results)
   main.jsx             # Entry point
   index.css            # Only contains: @import "tailwindcss";
+  modules/
+    index.js           # MODULES array + getModule(id) helper
+    multiplication.jsx # Module: generate, View, check
+    division.jsx
+    fractions.jsx
+    decimals.jsx
   screens/
-    Home.jsx           # Topic picker grid
-    Quiz.jsx           # Active quiz — 10 questions per session
+    Home.jsx           # Topic list (Quick Quiz) + Custom Mix builder
+    Quiz.jsx           # Consumes problems: [{ module, problem }]
     Results.jsx        # Score summary + rank
-  data/
-    topics.js          # TOPICS array (id, label, emoji, colors, description)
-    questions.js       # Question generators per topic (generateQuestion(topicId))
 ```
 
+## Module Interface
+Each module in `src/modules/` exports a default object:
+```js
+{
+  id, label, emoji, color, bgLight, border, description, inputHint,
+  generate(),           // returns a problem object (shape is module-specific)
+  View({ problem }),    // React component — renders the question display
+  check(problem, input) // returns boolean
+}
+```
+
+## Quiz Flow
+1. `Home.jsx` calls `generateProblems(counts)` → `[{ module, problem }]`, shuffled
+2. Array passed to `App.jsx` → `Quiz.jsx` via props
+3. `Quiz.jsx` renders `<module.View problem={problem} />` and calls `module.check()` on submit
+4. On completion → `Results.jsx` with `{ score, streak, results }`
+
+## Quiz Modes (Home screen)
+- **Quick Quiz**: 10 questions from one selected topic
+- **Custom Mix**: stepper (0–20) per topic, problems shuffled together
+
 ## Game Mechanics
-- **10 questions** per session
 - **+10 points** per correct answer
-- **+5 bonus points** for each answer when on a streak ≥ 2
-- Streak resets on wrong answer
+- **+5 bonus** on streak ≥ 2 (resets on wrong answer)
+- Feedback shown ~900ms then auto-advances
 - Ranks: Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%)
-- Feedback shown for ~900ms then auto-advances
 
 ## Topics Implemented
-| ID | Label | Generator |
-|----|-------|-----------|
-| `multiplication` | Multiplication | Two 2-digit numbers |
-| `division` | Division | Divisor 2–12, whole-number answer |
-| `fractions` | Fractions | Same-denominator addition, simplified |
-| `decimals` | Decimals | 1-decimal-place add/subtract |
+| ID | Label | generate() returns |
+|----|-------|--------------------|
+| `multiplication` | Multiplication ✖️ | `{ a, b, answer }` |
+| `division` | Division ➗ | `{ dividend, divisor, answer }` |
+| `fractions` | Fractions 🍕 | `{ n1, n2, denom, answer }` (same-denom addition, simplified) |
+| `decimals` | Decimals 🔢 | `{ left, right, op, answer }` (1-decimal add/subtract) |
 
 ## Pending / To Be Defined
-- User has more concepts to explain — topics may be extended or customized
+- User has more math concepts to describe — modules can be added freely
 - No persistent score storage yet (no localStorage / backend)
 - No user profile / name personalization yet
-- Mobile responsiveness not fully tested
 
 ## Key Decisions
-- `generateQuestion(topicId)` in `data/questions.js` returns `{ question, answer, type }`
-- Answer comparison uses `normalizeAnswer()` — trims whitespace, handles fractions as strings like `"3/4"`
+- Problems are generated all upfront (not on the fly) — enables shuffling across topics
+- `module.View` renders only the question display; input + submit live in `Quiz.jsx`
+- Fraction answers compared as normalized strings (e.g. `"3/4"`)
 - Tailwind v4 requires `--legacy-peer-deps` due to Vite 8 peer constraint
-- `App.css` was removed; all styling is Tailwind utility classes
 
 ## Running the App
 ```bash

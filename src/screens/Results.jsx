@@ -1,17 +1,16 @@
-const MAX_SCORE = 10 * 10 // 10 questions × 10 pts
-
-function getRank(score) {
-  const pct = score / MAX_SCORE
+function getRank(correct, total) {
+  const pct = total === 0 ? 0 : correct / total
   if (pct >= 0.9) return { label: 'Math Wizard! 🧙', color: 'text-purple-600' }
   if (pct >= 0.7) return { label: 'Star Student! ⭐', color: 'text-yellow-500' }
   if (pct >= 0.5) return { label: 'Good Job! 👍', color: 'text-blue-500' }
   return { label: 'Keep Practicing! 💪', color: 'text-orange-500' }
 }
 
-export default function Results({ result, topic, onPlayAgain, onHome }) {
+export default function Results({ result, onPlayAgain, onHome }) {
   const { score, results } = result
   const correct = results.filter((r) => r.correct).length
-  const rank = getRank(score)
+  const total = results.length
+  const rank = getRank(correct, total)
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
@@ -24,14 +23,14 @@ export default function Results({ result, topic, onPlayAgain, onHome }) {
           <div className="flex justify-around">
             <div>
               <div className="text-4xl font-bold text-indigo-600">{score}</div>
-              <div className="text-sm text-gray-500 mt-1">Total Stars ⭐</div>
+              <div className="text-sm text-gray-500 mt-1">Stars ⭐</div>
             </div>
             <div>
               <div className="text-4xl font-bold text-green-600">{correct}</div>
               <div className="text-sm text-gray-500 mt-1">Correct ✓</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-orange-500">{results.length - correct}</div>
+              <div className="text-4xl font-bold text-orange-500">{total - correct}</div>
               <div className="text-sm text-gray-500 mt-1">Missed ✗</div>
             </div>
           </div>

@@ -1,57 +1,50 @@
 import { useState, useEffect, useRef } from 'react'
-import { generateQuestion } from '../data/questions'
 
-const TOTAL_QUESTIONS = 10
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
 
-export default function Quiz({ topic, onFinish, onHome }) {
-  const [current, setCurrent] = useState(() => generateQuestion(topic.id))
+export default function Quiz({ problems, onFinish, onHome }) {
+  const [index, setIndex] = useState(0)
   const [input, setInput] = useState('')
   const [feedback, setFeedback] = useState(null) // 'correct' | 'wrong' | null
-  const [questionNum, setQuestionNum] = useState(1)
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [results, setResults] = useState([])
   const inputRef = useRef(null)
 
+  const current = problems[index]
+  const { module, problem } = current
+
   useEffect(() => {
     inputRef.current?.focus()
-  }, [current])
+  }, [index])
 
-  function normalizeAnswer(val) {
-    return val.trim().replace(/\s+/g, '')
-  }
-
-  function checkAnswer() {
-    if (!input.trim()) return
-    const correct = normalizeAnswer(String(current.answer)) === normalizeAnswer(input)
+  function submit() {
+    if (!input.trim() || feedback) return
+    const correct = module.check(problem, input)
     const newStreak = correct ? streak + 1 : 0
     const bonus = correct && newStreak > 1 ? POINTS_STREAK_BONUS : 0
     const earned = correct ? POINTS_CORRECT + bonus : 0
+    const newScore = score + earned
+    const newResults = [...results, { correct, earned, module }]
 
     setFeedback(correct ? 'correct' : 'wrong')
-    setScore((s) => s + earned)
+    setScore(newScore)
     setStreak(newStreak)
-    setResults((r) => [...r, { question: current.question, answer: current.answer, userAnswer: input, correct }])
+    setResults(newResults)
 
     setTimeout(() => {
       setFeedback(null)
       setInput('')
-      if (questionNum >= TOTAL_QUESTIONS) {
-        onFinish({ score: score + earned, streak: newStreak, results: [...results, { correct }] })
+      if (index + 1 >= problems.length) {
+        onFinish({ score: newScore, streak: newStreak, results: newResults })
       } else {
-        setQuestionNum((n) => n + 1)
-        setCurrent(generateQuestion(topic.id))
+        setIndex((i) => i + 1)
       }
     }, 900)
   }
 
-  function handleKey(e) {
-    if (e.key === 'Enter') checkAnswer()
-  }
-
-  const progress = (questionNum - 1) / TOTAL_QUESTIONS
+  const progress = index / problems.length
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
@@ -72,15 +65,14 @@ export default function Quiz({ topic, onFinish, onHome }) {
         </div>
 
         {/* Progress bar */}
-        <div className="bg-gray-200 rounded-full h-2 mb-6">
+        <div className="bg-gray-200 rounded-full h-2 mb-4">
           <div
             className="bg-gradient-to-r from-indigo-400 to-purple-500 h-2 rounded-full transition-all duration-500"
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-
         <p className="text-center text-gray-400 text-sm mb-6">
-          Question {questionNum} of {TOTAL_QUESTIONS} — {topic.label} {topic.emoji}
+          {index + 1} / {problems.length} — {module.label} {module.emoji}
         </p>
 
         {/* Question card */}
@@ -93,9 +85,17 @@ export default function Quiz({ topic, onFinish, onHome }) {
               : 'bg-white border-2 border-gray-100'
           }`}
         >
-          <p className="text-2xl font-bold text-gray-800 mb-2">{current.question}</p>
-          {feedback === 'correct' && <p className="text-green-600 font-semibold text-lg">✓ Correct! +{POINTS_CORRECT}{streak > 1 ? ` +${POINTS_STREAK_BONUS} bonus` : ''}</p>}
-          {feedback === 'wrong' && <p className="text-red-600 font-semibold text-lg">✗ The answer was {current.answer}</p>}
+          <module.View problem={problem} />
+          {feedback === 'correct' && (
+            <p className="mt-4 text-green-600 font-semibold text-lg">
+              ✓ Correct! +{POINTS_CORRECT}{streak > 1 ? ` +${POINTS_STREAK_BONUS} bonus` : ''}
+            </p>
+          )}
+          {feedback === 'wrong' && (
+            <p className="mt-4 text-red-600 font-semibold text-lg">
+              ✗ Answer: {problem.answer}
+            </p>
+          )}
         </div>
 
         {/* Input */}
@@ -104,14 +104,14 @@ export default function Quiz({ topic, onFinish, onHome }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
           disabled={!!feedback}
-          placeholder="Your answer…"
+          placeholder={module.inputHint ?? 'Your answer…'}
           className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 text-xl text-center focus:outline-none focus:border-indigo-400 mb-4 disabled:opacity-50"
         />
 
         <button
-          onClick={checkAnswer}
+          onClick={submit}
           disabled={!!feedback || !input.trim()}
           className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-2xl text-lg hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-default"
         >
