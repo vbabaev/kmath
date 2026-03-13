@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MODULES } from '../modules'
+import { MODULES, GROUP_META } from '../modules'
 
 const QUICK_QUIZ_COUNT = 10
 
@@ -31,8 +31,88 @@ function generateProblems(counts) {
   return shuffle(problems)
 }
 
+/** Build a flat display list: standalone modules and grouped modules */
+function buildDisplayList() {
+  const list = []
+  const groupMap = {}
+  for (const mod of MODULES) {
+    if (!mod.group) {
+      list.push({ type: 'module', module: mod })
+    } else {
+      if (!groupMap[mod.group]) {
+        groupMap[mod.group] = { type: 'group', ...GROUP_META[mod.group], modules: [] }
+        list.push(groupMap[mod.group])
+      }
+      groupMap[mod.group].modules.push(mod)
+    }
+  }
+  return list
+}
+
+const DISPLAY_LIST = buildDisplayList()
+
+function ModuleRow({ mod, onStart, indent = false }) {
+  return (
+    <div
+      className={`${mod.bgLight} ${mod.border} border-2 rounded-2xl px-5 py-4 flex items-center justify-between ${indent ? 'ml-4' : ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{mod.emoji}</span>
+        <div>
+          <div className="font-semibold text-gray-800">{mod.label}</div>
+          <div className="text-sm text-gray-500">{mod.description}</div>
+        </div>
+      </div>
+      <button
+        onClick={onStart}
+        className="bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-sm font-semibold text-gray-700 px-4 py-2 rounded-xl shadow-sm cursor-pointer whitespace-nowrap"
+      >
+        Start →
+      </button>
+    </div>
+  )
+}
+
+function ModuleCounter({ mod, count, onDecrement, onIncrement, indent = false }) {
+  return (
+    <div
+      className={`${mod.bgLight} ${mod.border} border-2 rounded-2xl px-5 py-4 flex items-center justify-between ${indent ? 'ml-4' : ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{mod.emoji}</span>
+        <div className="font-semibold text-gray-800">{mod.label}</div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onDecrement}
+          className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+        >
+          −
+        </button>
+        <span className="w-6 text-center font-bold text-gray-800">{count}</span>
+        <button
+          onClick={onIncrement}
+          className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GroupHeader({ emoji, label }) {
+  return (
+    <div className="flex items-center gap-2 mt-2 mb-1 px-1">
+      <span className="text-lg">{emoji}</span>
+      <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">{label}</span>
+      <div className="flex-1 h-px bg-gray-200 ml-1" />
+    </div>
+  )
+}
+
 export default function Home({ onStart }) {
-  const [mode, setMode] = useState('list') // 'list' | 'custom'
+  const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
     Object.fromEntries(MODULES.map((m) => [m.id, 0]))
   )
@@ -84,58 +164,53 @@ export default function Home({ onStart }) {
 
         {mode === 'list' && (
           <div className="flex flex-col gap-3">
-            {MODULES.map((mod) => (
-              <div
-                key={mod.id}
-                className={`${mod.bgLight} ${mod.border} border-2 rounded-2xl px-5 py-4 flex items-center justify-between`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{mod.emoji}</span>
-                  <div>
-                    <div className="font-semibold text-gray-800">{mod.label}</div>
-                    <div className="text-sm text-gray-500">{mod.description}</div>
+            {DISPLAY_LIST.map((item) =>
+              item.type === 'module' ? (
+                <ModuleRow key={item.module.id} mod={item.module} onStart={() => quickQuiz(item.module)} />
+              ) : (
+                <div key={item.id}>
+                  <GroupHeader emoji={item.emoji} label={item.label} />
+                  <div className="flex flex-col gap-3">
+                    {item.modules.map((mod) => (
+                      <ModuleRow key={mod.id} mod={mod} onStart={() => quickQuiz(mod)} indent />
+                    ))}
                   </div>
                 </div>
-                <button
-                  onClick={() => quickQuiz(mod)}
-                  className="bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-sm font-semibold text-gray-700 px-4 py-2 rounded-xl shadow-sm cursor-pointer"
-                >
-                  Start →
-                </button>
-              </div>
-            ))}
+              )
+            )}
             <p className="text-center text-gray-400 text-xs mt-2">{QUICK_QUIZ_COUNT} questions per topic</p>
           </div>
         )}
 
         {mode === 'custom' && (
           <div className="flex flex-col gap-3">
-            {MODULES.map((mod) => (
-              <div
-                key={mod.id}
-                className={`${mod.bgLight} ${mod.border} border-2 rounded-2xl px-5 py-4 flex items-center justify-between`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{mod.emoji}</span>
-                  <div className="font-semibold text-gray-800">{mod.label}</div>
+            {DISPLAY_LIST.map((item) =>
+              item.type === 'module' ? (
+                <ModuleCounter
+                  key={item.module.id}
+                  mod={item.module}
+                  count={counts[item.module.id]}
+                  onDecrement={() => setCount(item.module.id, -1)}
+                  onIncrement={() => setCount(item.module.id, +1)}
+                />
+              ) : (
+                <div key={item.id}>
+                  <GroupHeader emoji={item.emoji} label={item.label} />
+                  <div className="flex flex-col gap-3">
+                    {item.modules.map((mod) => (
+                      <ModuleCounter
+                        key={mod.id}
+                        mod={mod}
+                        count={counts[mod.id]}
+                        onDecrement={() => setCount(mod.id, -1)}
+                        onIncrement={() => setCount(mod.id, +1)}
+                        indent
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setCount(mod.id, -1)}
-                    className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
-                  >
-                    −
-                  </button>
-                  <span className="w-6 text-center font-bold text-gray-800">{counts[mod.id]}</span>
-                  <button
-                    onClick={() => setCount(mod.id, +1)}
-                    className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            )}
 
             <button
               onClick={startCustom}

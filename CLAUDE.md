@@ -13,14 +13,20 @@ src/
   App.jsx              # Root — screen state machine (home/quiz/results)
   main.jsx             # Entry point
   index.css            # Only contains: @import "tailwindcss";
+  components/
+    ShapeCanvas.jsx    # SVG helpers: ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE
   modules/
-    index.js           # MODULES array + getModule(id) helper
+    index.js           # MODULES array, GROUP_META, getModule(id)
     multiplication.jsx
     division.jsx
-    fractions.jsx      # Has custom Input component with format picker
+    fractions.jsx      # Custom Input with format picker (whole/fraction/mixed)
     decimals.jsx
+    areas/
+      square.jsx
+      rectangle.jsx
+      rectangleCutout.jsx  # L-shaped figure with dashed ghost lines
   screens/
-    Home.jsx           # Topic list (Quick Quiz) + Custom Mix builder
+    Home.jsx           # Topic list (Quick Quiz) + Custom Mix; groups rendered with GroupHeader
     Quiz.jsx           # Consumes problems: [{ module, problem }]
     Results.jsx        # Accuracy % + score
 ```
@@ -61,12 +67,14 @@ Each module exports a default object:
 - Ranks based on accuracy: Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%)
 
 ## Topics Implemented
-| ID | Label | Problem shape | Notes |
-|----|-------|---------------|-------|
-| `multiplication` | Multiplication ✖️ | `{ a, b, answer }` | |
-| `division` | Division ➗ | `{ dividend, divisor, answer }` | |
-| `fractions` | Fractions 🍕 | `{ n1, n2, denom, answerNum, answerDen }` | Format picker: whole / fraction / mixed; checked via cross-multiplication |
-| `decimals` | Decimals 🔢 | `{ left, right, op, answer }` | 1-decimal add/subtract |
+- `multiplication` ✖️ — `{ a, b, answer }` — two 2-digit numbers
+- `division` ➗ — `{ dividend, divisor, answer }` — divisor 2–12
+- `fractions` 🍕 — `{ n1, n2, denom, answerNum, answerDen }` — custom Input, format picker, cross-multiply check
+- `decimals` 🔢 — `{ left, right, op, answer }` — 1-decimal add/subtract
+- **Areas group** (📐) shown under GroupHeader in Home:
+  - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
+  - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
+  - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG, dashed ghost corner, 4 dimension lines
 
 ## Fractions Input Detail
 - User picks format first: **Whole number**, **Fraction**, **Mixed number**
