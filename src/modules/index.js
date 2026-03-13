@@ -2,6 +2,7 @@ import multiplication from './multiplication'
 import division from './division'
 import fractions from './fractions'
 import decimals from './decimals'
+import compare from './compare'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
@@ -11,6 +12,7 @@ export const MODULES = [
   division,
   fractions,
   decimals,
+  compare,
   square,
   rectangle,
   rectangleCutout,
