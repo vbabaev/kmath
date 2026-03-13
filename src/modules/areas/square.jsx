@@ -11,7 +11,7 @@ function generate() {
 
 function View({ problem }) {
   const { a } = problem
-  const x0 = 75, y0 = 30, side = 140
+  const x0 = 90, y0 = 30, side = 135
   return (
     <div className="text-center">
       <ShapeCanvas>

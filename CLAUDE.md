@@ -74,7 +74,7 @@ Each module exports a default object:
 - **Areas group** (📐) shown under GroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
-  - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG, dashed ghost corner, 4 dimension lines
+  - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG (width=370), dashed ghost corner, 4 dimension lines
 
 ## Fractions Input Detail
 - User picks format first: **Whole number**, **Fraction**, **Mixed number**

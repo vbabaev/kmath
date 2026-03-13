@@ -17,7 +17,7 @@ function View({ problem }) {
   const { W, H, cw, ch } = problem
 
   // Canvas: 320×245
-  const x0 = 55, y0 = 45
+  const x0 = 80, y0 = 45
   const W_px = 185, H_px = 130
   const cw_px = Math.round((cw / W) * W_px)
   const ch_px = Math.round((ch / H) * H_px)
@@ -35,7 +35,7 @@ function View({ problem }) {
 
   return (
     <div className="text-center">
-      <ShapeCanvas width={320} height={245}>
+      <ShapeCanvas width={370} height={245}>
         {/* Main L-shape */}
         <polygon points={polyPoints} fill={SHAPE_FILL} stroke={SHAPE_STROKE} strokeWidth="2.5" />
 
