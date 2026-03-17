@@ -37,6 +37,7 @@ export default {
   border: 'border-blue-200',
   description: 'Multi-digit multiplication',
   inputHint: 'Enter the product…',
+  defaultCount: 10,
   generate,
   View,
   check,

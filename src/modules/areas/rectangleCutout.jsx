@@ -90,6 +90,7 @@ export default {
   description: 'Area of a rectangle with a corner removed',
   inputHint: 'Area in cm²…',
   group: 'areas',
+  defaultCount: 10,
   generate,
   View,
   check,

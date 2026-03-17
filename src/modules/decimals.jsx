@@ -45,6 +45,7 @@ export default {
   border: 'border-purple-200',
   description: 'Add and subtract decimals',
   inputHint: 'Enter the decimal result…',
+  defaultCount: 10,
   generate,
   View,
   check,

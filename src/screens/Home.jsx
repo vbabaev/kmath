@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { MODULES, GROUP_META } from '../modules'
 
-const QUICK_QUIZ_COUNT = 10
 
 function shuffle(arr) {
   const a = [...arr]
@@ -67,7 +66,7 @@ function ModuleRow({ mod, onStart, indent = false }) {
         onClick={onStart}
         className="bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-sm font-semibold text-gray-700 px-4 py-2 rounded-xl shadow-sm cursor-pointer whitespace-nowrap"
       >
-        Start →
+        {mod.defaultCount}q →
       </button>
     </div>
   )
@@ -120,7 +119,7 @@ export default function Home({ onStart }) {
   const total = Object.values(counts).reduce((s, n) => s + n, 0)
 
   function quickQuiz(mod) {
-    onStart(generateProblems({ [mod.id]: QUICK_QUIZ_COUNT }))
+    onStart(generateProblems({ [mod.id]: mod.defaultCount }))
   }
 
   function startCustom() {
@@ -178,7 +177,7 @@ export default function Home({ onStart }) {
                 </div>
               )
             )}
-            <p className="text-center text-gray-400 text-xs mt-2">{QUICK_QUIZ_COUNT} questions per topic</p>
+            <p className="text-center text-gray-400 text-xs mt-2">Quick quiz uses each topic's default number of questions</p>
           </div>
         )}
 

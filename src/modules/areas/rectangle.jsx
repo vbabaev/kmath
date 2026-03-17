@@ -51,6 +51,7 @@ export default {
   description: 'Area of a rectangle',
   inputHint: 'Area in cm²…',
   group: 'areas',
+  defaultCount: 10,
   generate,
   View,
   check,

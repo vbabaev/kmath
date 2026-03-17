@@ -211,6 +211,7 @@ export default {
   border: 'border-amber-200',
   description: 'Convert prices using an exchange rate',
   defaultInput: null,
+  defaultCount: 5,
   group: 'word',
   generate,
   View,

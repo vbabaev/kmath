@@ -38,6 +38,7 @@ Each module exports a default object:
   id, label, emoji, color, bgLight, border, description,
   inputHint,            // optional — placeholder for default text input
   defaultInput,         // optional — initial input state (default: '')
+  defaultCount,         // number of questions for Quick Quiz (10 for most, 5 for word problems)
   generate(),           // returns a problem object (shape is module-specific)
   key(problem),         // returns a string key for deduplication
   View({ problem }),    // React component — renders the question display

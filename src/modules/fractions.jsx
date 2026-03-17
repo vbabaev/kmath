@@ -251,6 +251,7 @@ export default {
   border: 'border-orange-200',
   description: 'Add fractions with the same denominator',
   defaultInput: { format: null, whole: '', num: '', den: '' },
+  defaultCount: 10,
   generate,
   View,
   Input,

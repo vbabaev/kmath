@@ -37,6 +37,7 @@ export default {
   border: 'border-green-200',
   description: 'Long division practice',
   inputHint: 'Enter the quotient…',
+  defaultCount: 10,
   generate,
   View,
   check,
