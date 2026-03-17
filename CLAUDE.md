@@ -73,7 +73,7 @@ Each module exports a default object:
 - `decimals` 🔢 — `{ left, right, op, answer }` — 1-decimal add/subtract
 - `compare` ⚖️ — `{ num, den, decimal, fracOnLeft, answer }` — fraction vs decimal; answer is `'<'`/`'='`/`'>'`; 33% equal probability; denominators: 2,5,10,20,50,100; auto-submits on button click
 - **Word Problems group** (📝) shown under GroupHeader in Home:
-  - `proportions` 🔗 — `{ text, answer, choices[4], unitB, _key }` — proportional reasoning; 7 story contexts (market, bulk grains, fuel efficiency, reading, baking, tiles, swimming); rates from `RATES` array; all answers whole numbers; 2×2 MC grid, auto-submits
+  - `proportions` 💱 — `{ name, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; two items with $ and £ prices establish the rate, find £ for a third item's $ price; 8 rates (e.g. £3/$4), 17 items, 10 names; all values whole numbers; 2×2 MC grid, auto-submits
 - **Areas group** (📐) shown under GroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim

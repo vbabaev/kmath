@@ -1,8 +1,11 @@
-// All problems share the same proportional reasoning structure:
-//   Two pairs establish a rate (rNum units of A per rDen units of B).
-//   Given the A-value of a third item, find its B-value.
+// Exchange rate problem:
+//   Two items each have a $ price and £ price, establishing the rate.
+//   Find the £ price of a third item given its $ price.
 //
-// answer = givenA / rate = k3 * rDen   (always a whole number)
+// Rate: rNum £ per rDen $
+// aVal = rDen * k  ($ price)
+// bVal = rNum * k  (£ price)
+// answer = rNum * k3
 
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
@@ -21,89 +24,37 @@ function pick(arr, n) {
   return shuffle([...arr]).slice(0, n)
 }
 
-// Rates: [rNum, rDen] meaning rNum dollars per rDen units-of-B
+// £ per $ rates — rNum £ for every rDen $
 const RATES = [
-  [3, 2], [2, 1], [5, 2], [4, 1], [3, 1],
-  [5, 3], [6, 1], [4, 3], [2, 3], [5, 4],
+  [3, 4],  // £0.75 per $1
+  [4, 5],  // £0.80 per $1
+  [2, 3],  // £0.67 per $1
+  [1, 2],  // £0.50 per $1
+  [3, 5],  // £0.60 per $1
+  [5, 8],  // £0.625 per $1
+  [2, 5],  // £0.40 per $1
+  [3, 8],  // £0.375 per $1
 ]
 
-// k multipliers — keep numbers in a friendly range
 const K_POOL = [2, 3, 4, 5, 6, 7, 8]
 
-// ─── Contexts ────────────────────────────────────────────────────────────────
-// Each context: { buildText(v) → string, unitB, items[] }
-// v = { item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }
-// aVal = rNum*k (the "given" side), bVal = rDen*k (the "find" side)
+const NAMES = ['Alex', 'Sam', 'Emma', 'Noah', 'Lily', 'Ethan', 'Ava', 'Jake', 'Mia', 'Leo']
 
-const CONTEXTS = [
-  {
-    unitB: 'oz',
-    items: ['apples', 'oranges', 'grapes', 'bananas', 'peaches', 'plums', 'berries'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `At a farmers market, a bag of ${item1} costs $${aVal1} and weighs ${bVal1} oz. ` +
-      `A bag of ${item2} costs $${aVal2} and weighs ${bVal2} oz — the same price per ounce. ` +
-      `If a bag of ${item3} costs $${aVal3}, how many ounces does it weigh?`,
-  },
-  {
-    unitB: 'oz',
-    items: ['flour', 'sugar', 'rice', 'oats', 'pasta', 'cornmeal', 'rye'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `A store sells bulk grains. A scoop of ${item1} costs $${aVal1} and weighs ${bVal1} oz. ` +
-      `A scoop of ${item2} costs $${aVal2} and weighs ${bVal2} oz at the same rate. ` +
-      `How many ounces of ${item3} can you get for $${aVal3}?`,
-  },
-  {
-    unitB: 'miles',
-    items: ['red', 'blue', 'green', 'yellow', 'silver', 'black', 'orange'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `On a highway, a ${item1} car uses $${aVal1} of fuel to travel ${bVal1} miles. ` +
-      `A ${item2} car uses $${aVal2} of fuel to travel ${bVal2} miles at the same fuel efficiency. ` +
-      `How many miles can a ${item3} car travel on $${aVal3} of fuel?`,
-  },
-  {
-    unitB: 'pages',
-    items: ['Emma', 'Liam', 'Ava', 'Noah', 'Mia', 'Ethan', 'Lily'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `${item1} reads ${bVal1} pages every ${aVal1} minutes. ` +
-      `${item2} also reads ${bVal2} pages in ${aVal2} minutes at the same pace. ` +
-      `How many pages would ${item3} read in ${aVal3} minutes?`,
-  },
-  {
-    unitB: 'cookies',
-    items: ['Emma', 'Lily', 'Noah', 'Jake', 'Ava', 'Mia', 'Ethan'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `${item1} uses $${aVal1} worth of ingredients to bake ${bVal1} cookies. ` +
-      `${item2} spends $${aVal2} and bakes ${bVal2} cookies using the same recipe. ` +
-      `How many cookies can ${item3} bake with $${aVal3}?`,
-  },
-  {
-    unitB: 'tiles',
-    items: ['blue', 'white', 'gray', 'beige', 'green', 'terracotta', 'slate'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `A box of ${item1} tiles costs $${aVal1} and covers ${bVal1} square feet. ` +
-      `A box of ${item2} tiles costs $${aVal2} and covers ${bVal2} square feet at the same price per square foot. ` +
-      `How many square feet will $${aVal3} worth of ${item3} tiles cover?`,
-  },
-  {
-    unitB: 'laps',
-    items: ['Alex', 'Sam', 'Jordan', 'Taylor', 'Morgan', 'Riley', 'Casey'],
-    buildText: ({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }) =>
-      `${item1} burns ${aVal1} calories swimming ${bVal1} laps. ` +
-      `${item2} burns ${aVal2} calories swimming ${bVal2} laps at the same rate. ` +
-      `How many laps would ${item3} need to swim to burn ${aVal3} calories?`,
-  },
+const ITEMS = [
+  'book', 'hat', 'bag', 'scarf', 'mug', 'poster', 'toy',
+  'notebook', 'umbrella', 'keychain', 't-shirt', 'cap',
+  'wallet', 'journal', 'puzzle', 'candle', 'pen set',
 ]
 
-// ─── Distractor logic ─────────────────────────────────────────────────────────
-function makeChoices(answer, rDen, k3, givenA) {
+function makeChoices(answer, rNum, rDen, k3, dollarVal, bVal1, bVal2) {
   const candidates = [
-    givenA,               // unit confusion: use the "given" value
-    rDen * (k3 + 1),      // one step too many
-    rDen * (k3 - 1),      // one step too few
-    answer * 2,           // doubled
-    answer + rDen,        // close above
-    answer - rDen,        // close below
-    givenA - rDen,        // near given value
+    dollarVal,          // confuse $ with £ (very common mistake)
+    answer + rNum,      // one step too high
+    answer - rNum,      // one step too low
+    answer * 2,         // doubled
+    bVal1,              // reuse a given £ value
+    bVal2,              // reuse the other given £ value
+    dollarVal - rDen,   // near the $ value
   ].filter(c => Number.isInteger(c) && c > 0 && c !== answer)
 
   const unique = [...new Set(candidates)]
@@ -117,40 +68,59 @@ function makeChoices(answer, rDen, k3, givenA) {
   return shuffle([answer, ...unique.slice(0, 3)])
 }
 
-// ─── Generate ─────────────────────────────────────────────────────────────────
 function generate() {
-  const ctx = CONTEXTS[rand(0, CONTEXTS.length - 1)]
   const [rNum, rDen] = RATES[rand(0, RATES.length - 1)]
-
   const [k1, k2, k3] = pick(K_POOL, 3)
-  const [item1, item2, item3] = pick(ctx.items, 3)
+  const [name] = pick(NAMES, 1)
+  const [item1, item2, item3] = pick(ITEMS, 3)
 
-  const aVal1 = rNum * k1, bVal1 = rDen * k1
-  const aVal2 = rNum * k2, bVal2 = rDen * k2
-  const aVal3 = rNum * k3
-  const answer = rDen * k3
+  const aVal1 = rDen * k1,  bVal1 = rNum * k1   // item1: $aVal1 = £bVal1
+  const aVal2 = rDen * k2,  bVal2 = rNum * k2   // item2: $aVal2 = £bVal2
+  const aVal3 = rDen * k3                        // item3: $aVal3 = £?
+  const answer = rNum * k3
 
-  const choices = makeChoices(answer, rDen, k3, aVal3)
+  const choices = makeChoices(answer, rNum, rDen, k3, aVal3, bVal1, bVal2)
 
   return {
-    text: ctx.buildText({ item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 }),
+    name, item1, item2, item3,
+    aVal1, bVal1, aVal2, bVal2, aVal3,
     answer,
     choices,
-    unitB: ctx.unitB,
-    _key: `prop:${ctx.unitB}:${rNum}/${rDen}:${k1},${k2},${k3}`,
+    _key: `exch:${rNum}/${rDen}:${k1},${k2},${k3}`,
   }
 }
 
-// ─── View ─────────────────────────────────────────────────────────────────────
 function View({ problem }) {
+  const { name, item1, item2, item3, aVal1, bVal1, aVal2, bVal2, aVal3 } = problem
   return (
-    <p className="text-sm leading-relaxed text-gray-700 text-left">
-      {problem.text}
-    </p>
+    <div className="text-left space-y-4">
+      <p className="text-sm leading-relaxed text-gray-700">
+        {name} went shopping in New York and bought a <strong>{item1}</strong> for{' '}
+        <strong>${aVal1}</strong> and a <strong>{item2}</strong> for{' '}
+        <strong>${aVal2}</strong>. Back home in the UK, they converted both
+        prices: the {item1} cost <strong>£{bVal1}</strong> and the {item2}{' '}
+        cost <strong>£{bVal2}</strong>.
+      </p>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-gray-700 space-y-1">
+        <div className="flex justify-between">
+          <span>{item1}</span><span>${aVal1} = £{bVal1}</span>
+        </div>
+        <div className="border-t border-amber-200" />
+        <div className="flex justify-between">
+          <span>{item2}</span><span>${aVal2} = £{bVal2}</span>
+        </div>
+      </div>
+
+      <p className="font-semibold text-gray-800 text-sm">
+        Using the same exchange rate, how many <strong>pounds (£)</strong> would
+        a <strong>{item3}</strong> cost if it is priced at{' '}
+        <strong>${aVal3}</strong>?
+      </p>
+    </div>
   )
 }
 
-// ─── Input ────────────────────────────────────────────────────────────────────
 function Input({ value, onChange, onSubmit, disabled, problem }) {
   function handleSelect(choice) {
     if (disabled) return
@@ -171,14 +141,13 @@ function Input({ value, onChange, onSubmit, disabled, problem }) {
               : 'bg-white border-gray-200 text-gray-800 hover:border-indigo-300 hover:bg-indigo-50'
           }`}
         >
-          {choice} {problem.unitB}
+          £{choice}
         </button>
       ))}
     </div>
   )
 }
 
-// ─── Module interface ─────────────────────────────────────────────────────────
 function check(problem, value) {
   return value === problem.answer
 }
@@ -192,17 +161,17 @@ function key(problem) {
 }
 
 function displayAnswer(problem) {
-  return `${problem.answer} ${problem.unitB}`
+  return `£${problem.answer}`
 }
 
 export default {
   id: 'proportions',
-  label: 'Proportions',
-  emoji: '🔗',
+  label: 'Exchange Rate',
+  emoji: '💱',
   color: 'from-amber-400 to-amber-600',
   bgLight: 'bg-amber-50',
   border: 'border-amber-200',
-  description: 'Find the missing value using a rate',
+  description: 'Convert prices using an exchange rate',
   defaultInput: null,
   group: 'word',
   generate,
