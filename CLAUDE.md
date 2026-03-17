@@ -73,7 +73,7 @@ Each module exports a default object:
 - `decimals` 🔢 — `{ left, right, op, answer }` — 1-decimal add/subtract
 - `compare` ⚖️ — `{ num, den, decimal, fracOnLeft, answer }` — fraction vs decimal; answer is `'<'`/`'='`/`'>'`; 33% equal probability; denominators: 2,5,10,20,50,100; auto-submits on button click
 - **Word Problems group** (📝) shown under GroupHeader in Home:
-  - `proportions` 💱 — `{ name, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; two items with $ and £ prices establish the rate, find £ for a third item's $ price; 8 rates (e.g. £3/$4), 17 items, 10 names; all values whole numbers; 2×2 MC grid, auto-submits
+  - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
 - **Areas group** (📐) shown under GroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
