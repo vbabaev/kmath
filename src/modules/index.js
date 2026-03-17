@@ -6,6 +6,7 @@ import compare from './compare'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
+import proportions from './word/proportions'
 
 export const MODULES = [
   multiplication,
@@ -13,6 +14,7 @@ export const MODULES = [
   fractions,
   decimals,
   compare,
+  proportions,
   square,
   rectangle,
   rectangleCutout,
@@ -20,6 +22,7 @@ export const MODULES = [
 
 export const GROUP_META = {
   areas: { id: 'areas', label: 'Areas', emoji: '📐' },
+  word: { id: 'word', label: 'Word Problems', emoji: '📝' },
 }
 
 export function getModule(id) {

@@ -72,6 +72,8 @@ Each module exports a default object:
 - `fractions` 🍕 — `{ n1, n2, denom, answerNum, answerDen }` — custom Input, format picker, cross-multiply check
 - `decimals` 🔢 — `{ left, right, op, answer }` — 1-decimal add/subtract
 - `compare` ⚖️ — `{ num, den, decimal, fracOnLeft, answer }` — fraction vs decimal; answer is `'<'`/`'='`/`'>'`; 33% equal probability; denominators: 2,5,10,20,50,100; auto-submits on button click
+- **Word Problems group** (📝) shown under GroupHeader in Home:
+  - `proportions` 🔗 — `{ text, answer, choices[4], unitB, _key }` — proportional reasoning; 7 story contexts (market, bulk grains, fuel efficiency, reading, baking, tiles, swimming); rates from `RATES` array; all answers whole numbers; 2×2 MC grid, auto-submits
 - **Areas group** (📐) shown under GroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
@@ -91,7 +93,7 @@ Each module exports a default object:
 ## Key Decisions
 - Problems generated all upfront; `key()` on each module prevents duplicates
 - `module.Input` overrides default text input; `defaultInput` seeds the state
-- Modules with a custom `Input` that auto-submits: hide the "Check Answer" button; `submit()` accepts an optional `directValue` to bypass async state
+- Modules with a custom `Input` that auto-submits: hide the "Check Answer" button; `submit()` accepts an optional `directValue` to bypass async state; `module.Input` receives `problem` prop (needed for MC choices)
 - Tailwind v4 requires `--legacy-peer-deps` due to Vite 8 peer constraint
 
 ## Running the App

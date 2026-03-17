@@ -139,6 +139,7 @@ export default function Quiz({ problems, onFinish, onHome }) {
             onChange={setInput}
             onSubmit={submit}
             disabled={!!feedback}
+            problem={problem}
           />
         ) : (
           <input
