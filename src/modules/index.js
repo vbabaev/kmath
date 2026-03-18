@@ -7,6 +7,7 @@ import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
 import proportions from './word/proportions'
+import rounding from './rounding'
 
 export const MODULES = [
   multiplication,
@@ -14,6 +15,7 @@ export const MODULES = [
   fractions,
   decimals,
   compare,
+  rounding,
   proportions,
   square,
   rectangle,

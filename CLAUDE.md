@@ -21,6 +21,7 @@ src/
     division.jsx
     fractions.jsx      # Custom Input with format picker (whole/fraction/mixed)
     decimals.jsx
+    rounding.jsx       # Round to nearest tenth or hundredth; integer arithmetic
     areas/
       square.jsx
       rectangle.jsx
@@ -73,6 +74,7 @@ Each module exports a default object:
 - `fractions` 🍕 — `{ n1, n2, denom, answerNum, answerDen }` — custom Input, format picker, cross-multiply check
 - `decimals` 🔢 — `{ left, right, op, answer }` — 1-decimal add/subtract
 - `compare` ⚖️ — `{ num, den, decimal, fracOnLeft, answer }` — fraction vs decimal; answer is `'<'`/`'='`/`'>'`; 33% equal probability; denominators: 2,5,10,20,50,100; auto-submits on button click
+- `rounding` 🎯 — `{ type, numStr, answer, answerDisplay }` — round to nearest tenth (X.YZ) or hundredth (X.YZW); 50% chance deciding digit is 4 or 5; integer arithmetic to avoid float issues
 - **Word Problems group** (📝) shown under GroupHeader in Home:
   - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
 - **Areas group** (📐) shown under GroupHeader in Home:
