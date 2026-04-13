@@ -27,7 +27,7 @@ export default function Quiz({ problems, onFinish, onHome }) {
 
   function submit(directValue) {
     const currentInput = directValue !== undefined ? directValue : input
-    if (!isComplete(currentInput) || feedback) return
+    if (!isComplete(currentInput, problem) || feedback) return
 
     const newProblemAttempts = problemAttempts + 1
     const newTotalAttempts = totalAttempts + 1
@@ -157,7 +157,7 @@ export default function Quiz({ problems, onFinish, onHome }) {
         {!module.Input && (
           <button
             onClick={() => submit()}
-            disabled={!!feedback || !isComplete(input)}
+            disabled={!!feedback || !isComplete(input, problem)}
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-2xl text-lg hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-default"
           >
             Check Answer

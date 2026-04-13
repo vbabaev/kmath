@@ -72,7 +72,7 @@ function ModuleRow({ mod, onStart, indent = false }) {
   )
 }
 
-function ModuleCounter({ mod, count, onDecrement, onIncrement, indent = false }) {
+function ModuleCounter({ mod, count, onDecrement, onIncrement, onAdd5, indent = false }) {
   return (
     <div
       className={`${mod.bgLight} ${mod.border} border-2 rounded-2xl px-5 py-4 flex items-center justify-between ${indent ? 'ml-4' : ''}`}
@@ -81,7 +81,7 @@ function ModuleCounter({ mod, count, onDecrement, onIncrement, indent = false })
         <span className="text-2xl">{mod.emoji}</span>
         <div className="font-semibold text-gray-800">{mod.label}</div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           onClick={onDecrement}
           className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
@@ -94,6 +94,12 @@ function ModuleCounter({ mod, count, onDecrement, onIncrement, indent = false })
           className="w-8 h-8 rounded-full bg-white border border-gray-200 text-lg font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
         >
           +
+        </button>
+        <button
+          onClick={onAdd5}
+          className="h-8 px-2 rounded-full bg-white border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+        >
+          +5
         </button>
       </div>
     </div>
@@ -191,6 +197,7 @@ export default function Home({ onStart }) {
                   count={counts[item.module.id]}
                   onDecrement={() => setCount(item.module.id, -1)}
                   onIncrement={() => setCount(item.module.id, +1)}
+                  onAdd5={() => setCount(item.module.id, +5)}
                 />
               ) : (
                 <div key={item.id}>
@@ -203,6 +210,7 @@ export default function Home({ onStart }) {
                         count={counts[mod.id]}
                         onDecrement={() => setCount(mod.id, -1)}
                         onIncrement={() => setCount(mod.id, +1)}
+                        onAdd5={() => setCount(mod.id, +5)}
                         indent
                       />
                     ))}

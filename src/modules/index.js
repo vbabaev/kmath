@@ -3,11 +3,12 @@ import division from './division'
 import fractions from './fractions'
 import decimals from './decimals'
 import compare from './compare'
+import rounding from './rounding'
+import percent from './percent'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
 import proportions from './word/proportions'
-import rounding from './rounding'
 
 export const MODULES = [
   multiplication,
@@ -16,6 +17,7 @@ export const MODULES = [
   decimals,
   compare,
   rounding,
+  percent,
   proportions,
   square,
   rectangle,
