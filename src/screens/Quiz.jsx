@@ -8,22 +8,33 @@ function defaultIsComplete(value) {
 }
 
 export default function Quiz({ problems, onFinish, onHome }) {
+  // queue can grow as failed problems are re-appended; ref keeps closures fresh
+  const [queue, setQueue] = useState(problems)
+  const queueRef = useRef(problems)
+
   const [index, setIndex] = useState(0)
   const [input, setInput] = useState(() => problems[0].module.defaultInput ?? '')
   const [feedback, setFeedback] = useState(null)       // 'correct' | 'wrong' | null
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
-  const [problemAttempts, setProblemAttempts] = useState(0)  // attempts on current problem
-  const [totalAttempts, setTotalAttempts] = useState(0)      // all submissions
+  const [problemAttempts, setProblemAttempts] = useState(0)
+  const [totalAttempts, setTotalAttempts] = useState(0)
   const [completedProblems, setCompletedProblems] = useState([])
   const inputRef = useRef(null)
+  const questionStart = useRef(Date.now())
 
-  const { module, problem } = problems[index]
+  const { module, problem } = queue[index]
   const isComplete = module.isComplete ?? defaultIsComplete
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
+
+  function appendToQueue(item) {
+    const next = [...queueRef.current, item]
+    queueRef.current = next
+    setQueue(next)
+  }
 
   function submit(directValue) {
     const currentInput = directValue !== undefined ? directValue : input
@@ -39,6 +50,7 @@ export default function Quiz({ problems, onFinish, onHome }) {
     if (!correct) {
       setStreak(0)
       setFeedback('wrong')
+      appendToQueue({ module, problem })
       setTimeout(() => {
         setFeedback(null)
         setInput(module.defaultInput ?? '')
@@ -46,13 +58,13 @@ export default function Quiz({ problems, onFinish, onHome }) {
       return
     }
 
-    // Correct — award points only on first try
+    const timeMs = Date.now() - questionStart.current
     const firstTry = newProblemAttempts === 1
     const newStreak = firstTry ? streak + 1 : 0
     const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
     const earned = firstTry ? POINTS_CORRECT + bonus : 0
     const newScore = score + earned
-    const newCompleted = [...completedProblems, { module, attempts: newProblemAttempts }]
+    const newCompleted = [...completedProblems, { module, attempts: newProblemAttempts, timeMs }]
 
     setFeedback('correct')
     setScore(newScore)
@@ -61,18 +73,21 @@ export default function Quiz({ problems, onFinish, onHome }) {
 
     setTimeout(() => {
       const next = index + 1
+      const currentQueue = queueRef.current
       setFeedback(null)
       setProblemAttempts(0)
-      setInput(problems[next]?.module.defaultInput ?? '')
-      if (next >= problems.length) {
-        onFinish({ score: newScore, totalAttempts: newTotalAttempts, completedProblems: newCompleted })
+      questionStart.current = Date.now()
+      setInput(currentQueue[next]?.module.defaultInput ?? '')
+      if (next >= currentQueue.length) {
+        onFinish({ score: newScore, totalAttempts: newTotalAttempts, completedProblems: newCompleted, initialCount: problems.length })
       } else {
         setIndex(next)
       }
     }, 900)
   }
 
-  const progress = index / problems.length
+  const retryCount = queue.length - problems.length
+  const progress = index / queue.length
   const firstTry = problemAttempts === 0
 
   return (
@@ -101,7 +116,9 @@ export default function Quiz({ problems, onFinish, onHome }) {
           />
         </div>
         <p className="text-center text-gray-400 text-sm mb-6">
-          {index + 1} / {problems.length} — {module.label} {module.emoji}
+          {index + 1} / {queue.length}
+          {retryCount > 0 && <span className="text-orange-400"> (+{retryCount} retry)</span>}
+          {' '}— {module.label} {module.emoji}
           {problemAttempts > 0 && (
             <span className="ml-2 text-red-400">({problemAttempts} {problemAttempts === 1 ? 'attempt' : 'attempts'})</span>
           )}

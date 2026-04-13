@@ -53,9 +53,11 @@ Each module exports a default object:
 ## Quiz Flow
 1. `Home.jsx` calls `generateProblems(counts)` → `[{ module, problem }]`, deduplicated via `module.key()`, shuffled
 2. Array passed via `App.jsx` → `Quiz.jsx`
-3. Wrong answer: show "try again" feedback, reset input, **stay on same problem**, reset streak
-4. Correct answer: advance, award points only on first try
-5. On completion → `Results.jsx` with `{ score, totalAttempts, completedProblems }`
+3. Wrong answer: show "try again" feedback, reset input, **re-append problem to end of queue**, reset streak
+4. Correct answer: advance, award points only on first try; records `timeMs` for that problem
+5. On completion → `Results.jsx` with `{ score, totalAttempts, completedProblems, initialCount }`
+   - `completedProblems`: `[{ module, attempts, timeMs }]` — one entry per solved problem instance
+   - `initialCount`: original queue length before any retries
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic
@@ -65,7 +67,8 @@ Each module exports a default object:
 - **+10 points** per correct answer (first try only)
 - **+5 bonus** on streak ≥ 2 consecutive first-try solves (resets on any wrong answer)
 - Wrong answer: stay on problem, reset streak, no points deducted
-- Results: accuracy = `problems.length / totalAttempts * 100%`, plus "X of N solved on first try"
+- Results: accuracy = `completedProblems.length / totalAttempts * 100%`, plus "X of N solved on first try"
+- Per-module stats: accuracy %, avg time per solve, sorted slowest-first; only shown when >1 module played
 - Ranks based on accuracy: Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%)
 
 ## Topics Implemented
