@@ -79,6 +79,7 @@ Each module exports a default object:
 - `compare` ⚖️ — `{ num, den, decimal, fracOnLeft, answer }` — fraction vs decimal; answer is `'<'`/`'='`/`'>'`; 33% equal probability; denominators: 2,5,10,20,50,100; auto-submits on button click
 - `rounding` 🎯 — `{ type, numStr, answer, answerDisplay }` — round to nearest tenth (X.YZ) or hundredth (X.YZW); 50% chance deciding digit is 4 or 5; integer arithmetic to avoid float issues
 - `percent` 💯 — `{ num, den, pct, simplNum, simplDen, direction }` — convert fraction↔percentage; direction is `'toPercent'` or `'toFraction'`; only denominators dividing 100 (2,4,5,10,20,25,50); accepts any equivalent fraction; custom Input adapts to direction via `problem` prop
+- `perimeters` 📏 — `{ shape, answer, ...dims }` — one of 6 shapes: square `{a}`, rectangle `{w,h}`, rhombus `{a}`, trapezoid `{a,b,c}` (isosceles, legs=c), pentagon `{a}` (regular), cutout `{W,H,cw,ch}` (L-shape, perimeter=2W+2H); SVG with SideLabel/TickMark helpers for diagonal sides
 - **Word Problems group** (📝) shown under GroupHeader in Home:
   - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
 - **Areas group** (📐) shown under GroupHeader in Home:

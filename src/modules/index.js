@@ -5,6 +5,7 @@ import decimals from './decimals'
 import compare from './compare'
 import rounding from './rounding'
 import percent from './percent'
+import perimeters from './perimeters'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
@@ -18,6 +19,7 @@ export const MODULES = [
   compare,
   rounding,
   percent,
+  perimeters,
   proportions,
   square,
   rectangle,
