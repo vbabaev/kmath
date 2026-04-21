@@ -4,6 +4,7 @@ export const TARGETS = [
   'LINK', 'MASK', 'WALL', 'BALL', 'CALL', 'FALL', 'HALL', 'TALL', 'KING', 'RING',
   'SING', 'BANK', 'LONG', 'SONG', 'WIND', 'FIND', 'MIND', 'WARM', 'CORN', 'WORD',
   'STOP', 'SHOP', 'SHIP', 'HELP', 'LAMP', 'PUSH', 'MOON', 'BOOK', 'LOOK', 'GOLD',
+  'MAIN', 'CASH', 'WASH', 'RUSH', 'RANK', 'SINK', 'COLD', 'BEST', 'NEST', 'POST',
 ]
 
 export const TARGETS_SET = new Set(TARGETS)

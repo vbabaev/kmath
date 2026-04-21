@@ -212,7 +212,7 @@ export default {
   description: 'Convert prices using an exchange rate',
   defaultInput: null,
   defaultCount: 5,
-  group: 'school',
+  group: 'extra',
   subgroup: 'word',
   generate,
   View,

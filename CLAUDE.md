@@ -111,7 +111,7 @@ Each module exports a default object:
 
 ## Topics Implemented
 
-School Math holds the bulk of modules; Verbal Reasoning has one (`wordSplit`); Extra Math is empty.
+School Math holds the bulk of modules; Extra Math has the word problems subgroup; Verbal Reasoning has `wordSplit`.
 
 - `multiplication` ✖️ — `{ a, b, answer }` — two 2-digit numbers
 - `division` ➗ — `{ dividend, divisor, answer }` — divisor 2–12
@@ -121,14 +121,15 @@ School Math holds the bulk of modules; Verbal Reasoning has one (`wordSplit`); E
 - `rounding` 🎯 — `{ type, numStr, answer, answerDisplay }` — round to nearest tenth (X.YZ) or hundredth (X.YZW); 50% chance deciding digit is 4 or 5; integer arithmetic to avoid float issues
 - `percent` 💯 — `{ num, den, pct, simplNum, simplDen, direction }` — convert fraction↔percentage; direction is `'toPercent'` or `'toFraction'`; only denominators dividing 100 (2,4,5,10,20,25,50); accepts any equivalent fraction; custom Input adapts to direction via `problem` prop
 - `perimeters` 📏 — `{ shape, answer, ...dims }` — one of 6 shapes: square `{a}`, rectangle `{w,h}`, rhombus `{a}`, trapezoid `{a,b,c}` (isosceles, legs=c), pentagon `{a}` (regular), cutout `{W,H,cw,ch}` (L-shape, perimeter=2W+2H); SVG with SideLabel/TickMark helpers for diagonal sides
-- **Word Problems subgroup** (📝, `subgroup: 'word'`) shown under SubgroupHeader in Home:
-  - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
+- **Extra Math** (`group: 'extra'`) — currently only the Word Problems subgroup:
+  - **Word Problems subgroup** (📝, `subgroup: 'word'`):
+    - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
 - **Areas subgroup** (📐, `subgroup: 'areas'`) shown under SubgroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
   - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG (width=370), dashed ghost corner, 4 dimension lines
 - **Verbal Reasoning** (`group: 'verbal'`):
-  - `wordSplit` 🧩 — `{ w1, w2, validAnswers: [string], isNone: bool, _key }` — given two source words, find a 4-letter target formed by taking 1–3 letters from end of `w1` + remaining 3–1 from start of `w2`. 50% of problems are "no word" (user clicks **No word** button). Data in `wordSplitData.js`: 50 TARGETS (kid-known 4-letter words), ~400-word SOURCE_POOL (5+ letters, dedup, no targets); `buildPairsMap()` indexes pool by suffix/prefix length 1/2/3 at module load, producing `PAIRS_BY_TARGET` so generation is just a random pick. `canFormTargets(w1, w2)` returns ALL targets a pair can form (pair problems accept any equivalent target); `pickRandomNoPair()` samples until a pair forms zero targets. Custom Input: 4-letter text field (auto-uppercase, A-Z only) + **Check Word** + **No word** buttons; No word auto-submits the `NONE_VALUE` sentinel. `CorrectView` highlights the contributing letters in green and reveals the target in a bouncing pill (or "✓ No 4-letter word" for the no-word case).
+  - `wordSplit` 🧩 — `{ w1, w2, validAnswers: [string], isNone: bool, _key }` — given two source words, find a 4-letter target formed by taking 1–3 letters from end of `w1` + remaining 3–1 from start of `w2`. 50% of problems are "no word" (user clicks **No word** button). Data in `wordSplitData.js`: 60 TARGETS (kid-known 4-letter words), ~400-word SOURCE_POOL (5+ letters, dedup, no targets); `buildPairsMap()` indexes pool by suffix/prefix length 1/2/3 at module load, producing `PAIRS_BY_TARGET` so generation is just a random pick. `canFormTargets(w1, w2)` returns ALL targets a pair can form (pair problems accept any equivalent target); `pickRandomNoPair()` samples until a pair forms zero targets. Custom Input: 4-letter text field (auto-uppercase, A-Z only) + **Check Word** + **No word** buttons; No word auto-submits the `NONE_VALUE` sentinel. `CorrectView` highlights the contributing letters in green and reveals the target in a bouncing pill (or "✓ No 4-letter word" for the no-word case).
 
 ## Fractions Input Detail
 - User picks format first: **Whole number**, **Fraction**, **Mixed number**
@@ -137,7 +138,7 @@ School Math holds the bulk of modules; Verbal Reasoning has one (`wordSplit`); E
 - Mixed: `whole + num/den === answerNum/answerDen`
 
 ## Pending / To Be Defined
-- Extra Math group is empty; Verbal Reasoning has one module — more to come in both
+- Extra Math and Verbal Reasoning each have one module — more to come
 - Profile list is fixed to the 3 seeded profiles (no UI to add/remove/rename yet)
 - No aggregate/cross-profile stats view (only per-profile heatmap)
 
