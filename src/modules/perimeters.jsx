@@ -254,6 +254,7 @@ export default {
   border: 'border-emerald-200',
   description: 'Perimeter of squares, rectangles, rhombuses, trapezoids, pentagons & L-shapes',
   inputHint: 'Perimeter in cm…',
+  group: 'school',
   defaultCount: 10,
   generate,
   View,

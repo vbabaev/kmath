@@ -50,7 +50,7 @@ export default function Quiz({ problems, onFinish, onHome }) {
     if (!correct) {
       setStreak(0)
       setFeedback('wrong')
-      appendToQueue({ module, problem })
+      appendToQueue({ module, problem: module.generate() })
       setTimeout(() => {
         setFeedback(null)
         setInput(module.defaultInput ?? '')
@@ -134,7 +134,11 @@ export default function Quiz({ problems, onFinish, onHome }) {
               : 'bg-white border-2 border-gray-100'
           }`}
         >
-          <module.View problem={problem} />
+          {feedback === 'correct' && module.CorrectView ? (
+            <module.CorrectView problem={problem} input={input} />
+          ) : (
+            <module.View problem={problem} />
+          )}
           {feedback === 'correct' && (
             <p className="mt-4 text-green-600 font-semibold text-lg">
               {firstTry

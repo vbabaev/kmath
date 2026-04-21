@@ -86,6 +86,7 @@ export default {
   border: 'border-cyan-200',
   description: 'Round to the nearest tenth or hundredth',
   inputHint: 'Rounded value…',
+  group: 'school',
   defaultCount: 10,
   generate,
   View,

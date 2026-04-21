@@ -1,54 +1,23 @@
-import { useState } from 'react'
-import { MODULES, GROUP_META } from '../modules'
+import { useMemo, useState } from 'react'
+import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
+import { getProfileColors } from '../profiles'
 
-
-function shuffle(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
-function generateProblems(counts) {
-  const problems = []
-  for (const mod of MODULES) {
-    const n = counts[mod.id] ?? 0
-    const seen = new Set()
-    let tries = 0
-    while (problems.filter((p) => p.module === mod).length < n && tries < n * 20) {
-      const problem = mod.generate()
-      const k = mod.key(problem)
-      if (!seen.has(k)) {
-        seen.add(k)
-        problems.push({ module: mod, problem })
-      }
-      tries++
-    }
-  }
-  return shuffle(problems)
-}
-
-/** Build a flat display list: standalone modules and grouped modules */
-function buildDisplayList() {
+function buildDisplayList(groupId) {
   const list = []
-  const groupMap = {}
-  for (const mod of MODULES) {
-    if (!mod.group) {
+  const subgroupMap = {}
+  for (const mod of getModulesByGroup(groupId)) {
+    if (!mod.subgroup) {
       list.push({ type: 'module', module: mod })
     } else {
-      if (!groupMap[mod.group]) {
-        groupMap[mod.group] = { type: 'group', ...GROUP_META[mod.group], modules: [] }
-        list.push(groupMap[mod.group])
+      if (!subgroupMap[mod.subgroup]) {
+        subgroupMap[mod.subgroup] = { type: 'subgroup', ...SUBGROUP_META[mod.subgroup], modules: [] }
+        list.push(subgroupMap[mod.subgroup])
       }
-      groupMap[mod.group].modules.push(mod)
+      subgroupMap[mod.subgroup].modules.push(mod)
     }
   }
   return list
 }
-
-const DISPLAY_LIST = buildDisplayList()
 
 function ModuleRow({ mod, onStart, indent = false }) {
   return (
@@ -106,7 +75,7 @@ function ModuleCounter({ mod, count, onDecrement, onIncrement, onAdd5, indent = 
   )
 }
 
-function GroupHeader({ emoji, label }) {
+function SubgroupHeader({ emoji, label }) {
   return (
     <div className="flex items-center gap-2 mt-2 mb-1 px-1">
       <span className="text-lg">{emoji}</span>
@@ -116,13 +85,44 @@ function GroupHeader({ emoji, label }) {
   )
 }
 
-export default function Home({ onStart }) {
+function EmptyGroup({ label }) {
+  return (
+    <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl px-6 py-10 text-center">
+      <div className="text-4xl mb-2">✨</div>
+      <div className="font-semibold text-gray-700">{label} — coming soon</div>
+      <div className="text-sm text-gray-400 mt-1">New topics will show up here</div>
+    </div>
+  )
+}
+
+function ProfileButton({ profile, onClick }) {
+  const c = getProfileColors(profile.color)
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 ${c.pill} rounded-full pl-1 pr-3 py-1 text-sm font-semibold cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm`}
+      title="View profile"
+    >
+      <span className={`w-7 h-7 rounded-full ${c.bgLight} ${c.border} border flex items-center justify-center text-base`}>
+        {profile.emoji}
+      </span>
+      <span>{profile.name}</span>
+    </button>
+  )
+}
+
+export default function Home({ activeProfile, onStart, onGroupChange, onProfileClick }) {
+  const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
     Object.fromEntries(MODULES.map((m) => [m.id, 0]))
   )
 
-  const total = Object.values(counts).reduce((s, n) => s + n, 0)
+  const displayList = useMemo(() => buildDisplayList(group), [group])
+  const groupModuleIds = useMemo(() => getModulesByGroup(group).map((m) => m.id), [group])
+  const total = groupModuleIds.reduce((s, id) => s + (counts[id] ?? 0), 0)
+  const isEmpty = displayList.length === 0
+  const activeGroupLabel = GROUPS.find((g) => g.id === group)?.label ?? ''
 
   function quickQuiz(mod) {
     onStart(generateProblems({ [mod.id]: mod.defaultCount }))
@@ -130,7 +130,8 @@ export default function Home({ onStart }) {
 
   function startCustom() {
     if (total === 0) return
-    onStart(generateProblems(counts))
+    const groupCounts = Object.fromEntries(groupModuleIds.map((id) => [id, counts[id] ?? 0]))
+    onStart(generateProblems(groupCounts))
   }
 
   function setCount(id, delta) {
@@ -138,16 +139,37 @@ export default function Home({ onStart }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen flex flex-col items-center p-6">
       <div className="max-w-lg w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-3">🧮</div>
-          <h1 className="text-4xl font-bold text-indigo-700 mb-1">KMath</h1>
-          <p className="text-gray-400 text-base">5th Grade Math Practice</p>
+        {/* Top bar with profile button */}
+        <div className="flex justify-end mb-4">
+          <ProfileButton profile={activeProfile} onClick={onProfileClick} />
         </div>
 
-        {/* Tab switcher */}
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="text-6xl mb-3">🧮</div>
+          <h1 className="text-4xl font-bold text-indigo-700 mb-1">KMath</h1>
+          <p className="text-gray-400 text-base">Practice, learn, level up</p>
+        </div>
+
+        {/* Group switcher */}
+        <div className="flex bg-white rounded-2xl p-1 mb-4 shadow-sm border border-gray-100">
+          {GROUPS.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => onGroupChange(g.id)}
+              className={`flex-1 py-2 px-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                group === g.id ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span>{g.emoji}</span>
+              <span>{g.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Mode switcher */}
         <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-gray-100">
           <button
             onClick={() => setMode('list')}
@@ -167,14 +189,16 @@ export default function Home({ onStart }) {
           </button>
         </div>
 
-        {mode === 'list' && (
+        {isEmpty && <EmptyGroup label={activeGroupLabel} />}
+
+        {!isEmpty && mode === 'list' && (
           <div className="flex flex-col gap-3">
-            {DISPLAY_LIST.map((item) =>
+            {displayList.map((item) =>
               item.type === 'module' ? (
                 <ModuleRow key={item.module.id} mod={item.module} onStart={() => quickQuiz(item.module)} />
               ) : (
                 <div key={item.id}>
-                  <GroupHeader emoji={item.emoji} label={item.label} />
+                  <SubgroupHeader emoji={item.emoji} label={item.label} />
                   <div className="flex flex-col gap-3">
                     {item.modules.map((mod) => (
                       <ModuleRow key={mod.id} mod={mod} onStart={() => quickQuiz(mod)} indent />
@@ -187,9 +211,9 @@ export default function Home({ onStart }) {
           </div>
         )}
 
-        {mode === 'custom' && (
+        {!isEmpty && mode === 'custom' && (
           <div className="flex flex-col gap-3">
-            {DISPLAY_LIST.map((item) =>
+            {displayList.map((item) =>
               item.type === 'module' ? (
                 <ModuleCounter
                   key={item.module.id}
@@ -201,7 +225,7 @@ export default function Home({ onStart }) {
                 />
               ) : (
                 <div key={item.id}>
-                  <GroupHeader emoji={item.emoji} label={item.label} />
+                  <SubgroupHeader emoji={item.emoji} label={item.label} />
                   <div className="flex flex-col gap-3">
                     {item.modules.map((mod) => (
                       <ModuleCounter

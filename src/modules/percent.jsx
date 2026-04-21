@@ -147,6 +147,7 @@ export default {
   border: 'border-purple-200',
   description: 'Convert fractions ↔ percentages',
   defaultInput: { pct: '', num: '', den: '' },
+  group: 'school',
   defaultCount: 10,
   generate,
   View,

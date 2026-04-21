@@ -122,6 +122,7 @@ export default {
   border: 'border-rose-200',
   description: 'Compare fractions and decimals',
   defaultInput: null,
+  group: 'school',
   defaultCount: 10,
   generate,
   View,

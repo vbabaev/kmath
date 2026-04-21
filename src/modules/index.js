@@ -10,6 +10,7 @@ import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
 import proportions from './word/proportions'
+import wordSplit from './verbal/wordSplit'
 
 export const MODULES = [
   multiplication,
@@ -24,13 +25,61 @@ export const MODULES = [
   square,
   rectangle,
   rectangleCutout,
+  wordSplit,
 ]
 
-export const GROUP_META = {
+export const GROUPS = [
+  { id: 'school', label: 'School Math', emoji: '🧮' },
+  { id: 'extra', label: 'Extra Math', emoji: '➕' },
+  { id: 'verbal', label: 'Verbal Reasoning', emoji: '📖' },
+]
+
+export const SUBGROUP_META = {
   areas: { id: 'areas', label: 'Areas', emoji: '📐' },
   word: { id: 'word', label: 'Word Problems', emoji: '📝' },
 }
 
 export function getModule(id) {
   return MODULES.find((m) => m.id === id)
+}
+
+export function getModulesByGroup(groupId) {
+  return MODULES.filter((m) => m.group === groupId)
+}
+
+function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+export function generateProblems(counts) {
+  const problems = []
+  for (const mod of MODULES) {
+    const n = counts[mod.id] ?? 0
+    if (n === 0) continue
+    const seen = new Set()
+    let tries = 0
+    while (problems.filter((p) => p.module === mod).length < n && tries < n * 20) {
+      const problem = mod.generate()
+      const k = mod.key(problem)
+      if (!seen.has(k)) {
+        seen.add(k)
+        problems.push({ module: mod, problem })
+      }
+      tries++
+    }
+  }
+  return shuffle(problems)
+}
+
+export function countsFromProblems(problems) {
+  const counts = {}
+  for (const { module } of problems) {
+    counts[module.id] = (counts[module.id] ?? 0) + 1
+  }
+  return counts
 }

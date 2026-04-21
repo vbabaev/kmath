@@ -3,9 +3,9 @@ export const SHAPE_STROKE = '#2563eb'
 const DIM_COLOR = '#6b7280'
 const LABEL_COLOR = '#1f2937'
 
-export function ShapeCanvas({ children, width = 300, height = 210 }) {
+export function ShapeCanvas({ children, width = 300, height = 210, padX = 24 }) {
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-xs mx-auto">
+    <svg viewBox={`${-padX} 0 ${width + 2 * padX} ${height}`} className="w-full max-w-xs mx-auto">
       {children}
     </svg>
   )

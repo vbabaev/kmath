@@ -7,7 +7,9 @@
       "Bash(git commit:*)",
       "Bash(rm /Users/vadimb/WebstormProjects/kmath/src/data/topics.js /Users/vadimb/WebstormProjects/kmath/src/data/questions.js && rmdir /Users/vadimb/WebstormProjects/kmath/src/data && npm run build 2>&1)",
       "Bash(npm run:*)",
-      "Bash(for f:*)"
+      "Bash(for f:*)",
+      "Bash(npx vite:*)",
+      "Bash(node *)"
     ]
   }
 }
