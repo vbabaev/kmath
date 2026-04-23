@@ -1,4 +1,4 @@
-import { ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE } from '../../components/ShapeCanvas'
+import { ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE } from '../components/ShapeCanvas'
 
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
@@ -89,8 +89,7 @@ export default {
   border: 'border-indigo-200',
   description: 'Area of a rectangle with a corner removed',
   inputHint: 'Area in cm²…',
-  group: 'school',
-  subgroup: 'areas',
+  group: 'extra',
   defaultCount: 10,
   generate,
   View,

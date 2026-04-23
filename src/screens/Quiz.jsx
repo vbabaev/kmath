@@ -1,25 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
+import { saveActiveQuiz } from '../profiles'
+import { toProblemRef } from '../modules'
 
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
+const PENALTY_PER_UNSOLVED = 5
 
 function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-export default function Quiz({ problems, onFinish, onHome }) {
-  // queue can grow as failed problems are re-appended; ref keeps closures fresh
-  const [queue, setQueue] = useState(problems)
-  const queueRef = useRef(problems)
+export default function Quiz({ problems, initialState, onFinish, onCancel }) {
+  const startQueue = initialState?.queue ?? problems
+  const startIndex = initialState?.index ?? 0
 
-  const [index, setIndex] = useState(0)
-  const [input, setInput] = useState(() => problems[0].module.defaultInput ?? '')
+  // queue can grow as failed problems are re-appended; ref keeps closures fresh
+  const [queue, setQueue] = useState(startQueue)
+  const queueRef = useRef(startQueue)
+
+  const [index, setIndex] = useState(startIndex)
+  const [input, setInput] = useState(() => startQueue[startIndex]?.module.defaultInput ?? '')
   const [feedback, setFeedback] = useState(null)       // 'correct' | 'wrong' | null
-  const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
-  const [problemAttempts, setProblemAttempts] = useState(0)
-  const [totalAttempts, setTotalAttempts] = useState(0)
-  const [completedProblems, setCompletedProblems] = useState([])
+  const [score, setScore] = useState(initialState?.score ?? 0)
+  const [streak, setStreak] = useState(initialState?.streak ?? 0)
+  const [problemAttempts, setProblemAttempts] = useState(initialState?.problemAttempts ?? 0)
+  const [totalAttempts, setTotalAttempts] = useState(initialState?.totalAttempts ?? 0)
+  const [completedProblems, setCompletedProblems] = useState(initialState?.completedProblems ?? [])
+  const [showCancel, setShowCancel] = useState(false)
   const inputRef = useRef(null)
   const questionStart = useRef(Date.now())
 
@@ -29,6 +36,25 @@ export default function Quiz({ problems, onFinish, onHome }) {
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
+
+  // Auto-save for F5 / tab-close recovery. Fires whenever persisted state
+  // changes (once per submit, effectively).
+  useEffect(() => {
+    saveActiveQuiz({
+      problems: problems.map(toProblemRef),
+      queue: queue.map(toProblemRef),
+      index,
+      score,
+      streak,
+      problemAttempts,
+      totalAttempts,
+      completedProblems: completedProblems.map((c) => ({
+        moduleId: c.module.id,
+        attempts: c.attempts,
+        timeMs: c.timeMs,
+      })),
+    })
+  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems])
 
   function appendToQueue(item) {
     const next = [...queueRef.current, item]
@@ -89,14 +115,19 @@ export default function Quiz({ problems, onFinish, onHome }) {
   const retryCount = queue.length - problems.length
   const progress = index / queue.length
   const firstTry = problemAttempts === 0
+  const unsolved = problems.length - completedProblems.length
+  const penalty = Math.max(0, unsolved) * PENALTY_PER_UNSOLVED
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <button onClick={onHome} className="text-gray-400 hover:text-gray-600 text-sm cursor-pointer">
-            ← Home
+          <button
+            onClick={() => setShowCancel(true)}
+            className="text-gray-400 hover:text-red-500 text-sm cursor-pointer"
+          >
+            ✕ Cancel
           </button>
           <div className="flex items-center gap-2">
             {streak >= 2 && (
@@ -185,6 +216,41 @@ export default function Quiz({ problems, onFinish, onHome }) {
           </button>
         )}
       </div>
+
+      {/* Cancel confirmation modal */}
+      {showCancel && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-xl font-bold mb-3 text-gray-800">Cancel this quiz?</h3>
+            <p className="text-gray-700 mb-2">
+              You have <span className="font-bold">{Math.max(0, unsolved)}</span>{' '}
+              {unsolved === 1 ? 'problem' : 'problems'} left to solve.
+            </p>
+            <p className="text-gray-700 mb-5">
+              If you cancel now, your progress will be lost and{' '}
+              <span className="font-bold text-red-600">−{penalty} ⭐</span>{' '}
+              will be taken from your stars (5 per unsolved problem).
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCancel(false)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 cursor-pointer"
+              >
+                Keep playing
+              </button>
+              <button
+                onClick={() => {
+                  setShowCancel(false)
+                  onCancel(penalty)
+                }}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 cursor-pointer"
+              >
+                Yes, cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

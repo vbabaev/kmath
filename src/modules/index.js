@@ -9,7 +9,7 @@ import complicatedPercent from './complicatedPercent'
 import perimeters from './perimeters'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
-import rectangleCutout from './areas/rectangleCutout'
+import rectangleCutout from './rectangleCutout'
 import proportions from './word/proportions'
 import wordSplit from './verbal/wordSplit'
 import wordGap from './verbal/wordGap'
@@ -86,4 +86,17 @@ export function countsFromProblems(problems) {
     counts[module.id] = (counts[module.id] ?? 0) + 1
   }
   return counts
+}
+
+// ─── Quiz persistence helpers ────────────────────────────────────────────────
+// Problem objects carry a live module reference that can't be serialised, so
+// on save we swap it for `moduleId` and on load we resolve it back.
+
+export function toProblemRef({ module, problem }) {
+  return { moduleId: module.id, problem }
+}
+
+export function fromProblemRef({ moduleId, problem }) {
+  const module = getModule(moduleId)
+  return module ? { module, problem } : null
 }

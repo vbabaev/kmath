@@ -11,22 +11,65 @@ import {
   setActiveProfileId,
   updateActiveProfileSettings,
   logSessionFromResult,
+  clearActiveQuiz,
+  adjustActivePoints,
 } from './profiles'
-import { generateProblems, countsFromProblems } from './modules'
+import {
+  generateProblems,
+  countsFromProblems,
+  fromProblemRef,
+  getModule,
+} from './modules'
+
+function hydrateQuizState(saved) {
+  if (!saved) return null
+  const problems = (saved.problems ?? []).map(fromProblemRef).filter(Boolean)
+  const queue = (saved.queue ?? []).map(fromProblemRef).filter(Boolean)
+  const completedProblems = (saved.completedProblems ?? [])
+    .map((c) => {
+      const m = getModule(c.moduleId)
+      return m ? { module: m, attempts: c.attempts, timeMs: c.timeMs } : null
+    })
+    .filter(Boolean)
+  if (!problems.length || !queue.length) return null
+  return {
+    problems,
+    queue,
+    completedProblems,
+    index: saved.index ?? 0,
+    score: saved.score ?? 0,
+    streak: saved.streak ?? 0,
+    problemAttempts: saved.problemAttempts ?? 0,
+    totalAttempts: saved.totalAttempts ?? 0,
+  }
+}
 
 // problems: [{ module, problem }]
 export default function App() {
   const [screen, setScreen] = useState(null)
   const [activeProfile, setActiveProfile] = useState(null)
   const [problems, setProblems] = useState([])
+  const [savedQuizState, setSavedQuizState] = useState(null)
   const [sessionResult, setSessionResult] = useState(null)
+
+  function enterProfile(profile) {
+    setActiveProfile(profile)
+    const hydrated = hydrateQuizState(profile?.activeQuiz)
+    if (hydrated) {
+      setProblems(hydrated.problems)
+      setSavedQuizState(hydrated)
+      setScreen('quiz')
+    } else {
+      setSavedQuizState(null)
+      setScreen('home')
+    }
+  }
 
   useEffect(() => {
     ensureSeeded()
     const id = getActiveProfileId()
     if (id) {
-      setActiveProfile(getActiveProfile())
-      setScreen('home')
+      enterProfile(getActiveProfile())
     } else {
       setScreen('profilePicker')
     }
@@ -34,8 +77,7 @@ export default function App() {
 
   function selectProfile(id) {
     setActiveProfileId(id)
-    setActiveProfile(getActiveProfile())
-    setScreen('home')
+    enterProfile(getActiveProfile())
   }
 
   function refreshProfile() {
@@ -48,7 +90,9 @@ export default function App() {
   }
 
   function startQuiz(generatedProblems) {
+    clearActiveQuiz()
     setProblems(generatedProblems)
+    setSavedQuizState(null)
     setScreen('quiz')
   }
 
@@ -57,10 +101,21 @@ export default function App() {
   }
 
   function finishQuiz(result) {
+    clearActiveQuiz()
     logSessionFromResult(result)
     refreshProfile()
+    setSavedQuizState(null)
     setSessionResult(result)
     setScreen('results')
+  }
+
+  function cancelQuiz(penalty) {
+    clearActiveQuiz()
+    if (penalty > 0) adjustActivePoints(-penalty)
+    refreshProfile()
+    setProblems([])
+    setSavedQuizState(null)
+    setScreen('home')
   }
 
   function goHome() {
@@ -90,7 +145,14 @@ export default function App() {
           onProfileClick={goProfile}
         />
       )}
-      {screen === 'quiz' && <Quiz problems={problems} onFinish={finishQuiz} onHome={goHome} />}
+      {screen === 'quiz' && (
+        <Quiz
+          problems={problems}
+          initialState={savedQuizState}
+          onFinish={finishQuiz}
+          onCancel={cancelQuiz}
+        />
+      )}
       {screen === 'results' && (
         <Results
           result={sessionResult}

@@ -25,10 +25,10 @@ src/
     fractions.jsx      # Custom Input with format picker (whole/fraction/mixed)
     decimals.jsx
     rounding.jsx       # Round to nearest tenth or hundredth; integer arithmetic
-    areas/             # subgroup: 'areas'
+    areas/             # subgroup: 'areas' (School Math)
       square.jsx
       rectangle.jsx
-      rectangleCutout.jsx  # L-shaped figure with dashed ghost lines
+    rectangleCutout.jsx  # L-shape (Extra Math, standalone — no subgroup)
     word/              # subgroup: 'word'
       proportions.jsx
     complicatedPercent.jsx      # Extra Math — multi-template % module
@@ -58,7 +58,15 @@ src/
 - `ensureSeeded()` (called from `App.jsx` on mount) creates any missing profiles and migrates a legacy top-level `settings.group` into Dad's profile.
 - **Storage layout:**
   - `localStorage['kmath.settings']` → `{ activeProfile: '<id>' | null }` — app-level only.
-  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, settings: { group }, points, sessions: [] }`.
+  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, settings: { group }, points, sessions: [], activeQuiz? }`.
+- **`activeQuiz`** (optional) — snapshot of an in-progress quiz for F5 / tab-close recovery:
+  ```js
+  { problems: [{ moduleId, problem }],    // original queue (for initialCount)
+    queue:    [{ moduleId, problem }],    // current queue (grows with retries)
+    index, score, streak, problemAttempts, totalAttempts,
+    completedProblems: [{ moduleId, attempts, timeMs }] }
+  ```
+  Module refs are serialised as `moduleId` (live module object can't be JSON-ified) and rehydrated in `App.hydrateQuizState` via `fromProblemRef`. Cleared on quiz finish/cancel; `input` / `feedback` / timers are NOT persisted (reset on restore).
 - **Session entry** (appended on quiz completion):
   ```js
   { date: 'YYYY-MM-DD', startedAt: ISO, group,
@@ -100,6 +108,8 @@ Each module exports a default object:
 5. On completion → `Results.jsx` with `{ score, totalAttempts, completedProblems, initialCount }`
    - `completedProblems`: `[{ module, attempts, timeMs }]` — one entry per solved problem instance
    - `initialCount`: original queue length before any retries
+- **Auto-save:** `Quiz` has a `useEffect` that writes the current state to `profile.activeQuiz` on every meaningful change (submit, retry). `App` detects `activeQuiz` on mount and on `selectProfile` via `enterProfile()` and routes straight into `Quiz` with `initialState` instead of `home`.
+- **Cancel button** (top-left of Quiz, replaces the old "← Home" link): opens a confirmation modal showing `unsolved × 5 ⭐` as the penalty; confirm calls `onCancel(penalty)` → `App.cancelQuiz` which clears `activeQuiz`, deducts the penalty via `adjustActivePoints(-penalty)` (clamped to 0), and returns to Home. No session is logged for cancelled quizzes.
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic
@@ -109,6 +119,7 @@ Each module exports a default object:
 - **+10 points** per correct answer (first try only)
 - **+5 bonus** on streak ≥ 2 consecutive first-try solves (resets on any wrong answer)
 - Wrong answer: stay on problem, reset streak, no points deducted
+- **Cancel penalty:** `−5 ⭐` per unsolved original problem (`PENALTY_PER_UNSOLVED` in `Quiz.jsx`) — deducted from lifetime `profile.points`, clamped at 0
 - Results: accuracy = `completedProblems.length / totalAttempts * 100%`, plus "X of N solved on first try"
 - Per-module stats: accuracy %, avg time per solve, sorted slowest-first; only shown when >1 module played
 - Ranks based on accuracy: Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%)
@@ -133,10 +144,10 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
     - **List template** — `{ listId, items, listLabel, questionId, prompt, answer }`. Data in `complicatedPercentData.js` → `LIST_PROBLEMS`: 6 lists (months×12, names×10, colors×10, fruits×10, sports×10, weekdays×5). Every `{ listId, questionId }` pair has a hand-verified `count` that divides the list size into a whole percent (months only allow counts 3/6/9). Reveal highlights matching items in pink; `matchesQuestion(item, listId, questionId)` is a switch-based classifier that mirrors each question's rule (used only for the highlight — the stored `count` is the source of truth for the answer).
     - **Word template** — `{ word, kind, answer }` where `kind = 'vowels' | 'consonants'`. Word bank (`WORDS`) contains kid-known 4-, 5-, and 10-letter words only — lengths that divide 100 evenly. Vowel set is A/E/I/O/U (Y is a consonant). Reveal highlights matching letters in pink.
     - Dedup `key` = `cp:<template>:<subkey>`, where `_subkey` is grid size+shaded count / list-id+question-id / word+kind.
-- **Areas subgroup** (📐, `subgroup: 'areas'`) shown under SubgroupHeader in Home:
+- **Areas subgroup** (📐, `subgroup: 'areas'`, School Math) shown under SubgroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
-  - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG (width=370), dashed ghost corner, 4 dimension lines
+- `rectangleCutout` 📐 (Extra Math, **no subgroup**) — `{ W, H, cw, ch, answer }` — L-shape SVG (width=370), dashed ghost corner, 4 dimension lines. Lives in `src/modules/rectangleCutout.jsx` (moved out of `areas/` since it's no longer a School Math module).
 - **Verbal Reasoning** (`group: 'verbal'`):
   - `wordSplit` 🧩 — `{ w1, w2, validAnswers: [string], isNone: bool, _key }` — given two source words, find a 4-letter target formed by taking 1–3 letters from end of `w1` + remaining 3–1 from start of `w2`. 50% of problems are "no word" (user clicks **No word** button). Data in `wordSplitData.js`: 60 TARGETS (kid-known 4-letter words), ~400-word SOURCE_POOL (5+ letters, dedup, no targets); `buildPairsMap()` indexes pool by suffix/prefix length 1/2/3 at module load, producing `PAIRS_BY_TARGET` so generation is just a random pick. `canFormTargets(w1, w2)` returns ALL targets a pair can form (pair problems accept any equivalent target); `pickRandomNoPair()` samples until a pair forms zero targets. Custom Input: 4-letter text field (auto-uppercase, A-Z only) + **Check Word** + **No word** buttons; No word auto-submits the `NONE_VALUE` sentinel. `CorrectView` highlights the contributing letters in green and reveals the target in a bouncing pill (or "✓ No 4-letter word" for the no-word case).
   - `wordGap` 🔤 — `{ word, pos, answer, choices[5], _key }` — show part of a 6- or 7-letter word; pick the 3 letters that complete it from 5 MC options. Data in `wordGapData.js` (`WORDS`): 100 kid-known words, each with 3 `configs` — all three gap positions are used: prefix (`pos:0`), middle (`pos:2`), suffix (`pos + 3 === word.length`). Each config carries 6–8 `decoys` — wrong 3-letter strings hand-picked so NONE forms a valid word when inserted. Watch out for (a) suffix-sharing words like `___KET` for BASKET/BUCKET/JACKET — decoys must avoid other valid prefixes — and (b) middle-gap patterns like `CA___LE` that accept CANDLE/CASTLE/CATTLE/CANTLE, so decoys must avoid NDL/STL/TTL/NTL. `key` = `wg:WORD:pos` for dedup (different gap positions on the same word count as distinct). MC Input auto-submits. **View** gives no positional hint: it renders `before + after` concatenated (for BEAUTY middle gap → "BEY"; prefix → "UTY"; suffix → "BEA") with a generic "Which 3 letters complete the word?" prompt. The kid figures out whether to prepend, append, or insert. **CorrectView** renders `before + answer (emerald-600) + after (muted)` — revealing the gap's location only after a correct answer — and bounces the full word pill. Note: decoys were originally validated only for their config's specific insertion point, so for middle configs it is theoretically possible (though unlikely, given the random-looking 3-letter decoys) that a decoy could form a valid word at a different split — fix individual collisions in the data as they're reported.

@@ -99,6 +99,30 @@ export function updateActiveProfileSettings(partialSettings) {
   return next
 }
 
+export function saveActiveQuiz(activeQuiz) {
+  const current = getActiveProfile()
+  if (!current) return null
+  const next = { ...current, activeQuiz }
+  writeProfile(next)
+  return next
+}
+
+export function clearActiveQuiz() {
+  const current = getActiveProfile()
+  if (!current) return null
+  const { activeQuiz: _drop, ...rest } = current
+  writeProfile(rest)
+  return rest
+}
+
+export function adjustActivePoints(delta) {
+  const current = getActiveProfile()
+  if (!current) return null
+  const next = { ...current, points: Math.max(0, (current.points ?? 0) + delta) }
+  writeProfile(next)
+  return next
+}
+
 function localDateYMD(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
