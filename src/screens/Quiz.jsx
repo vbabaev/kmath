@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { saveActiveQuiz } from '../profiles'
 import { toProblemRef } from '../modules'
+import ProfileButton from '../components/ProfileButton'
 
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
@@ -10,7 +11,7 @@ function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-export default function Quiz({ problems, initialState, onFinish, onCancel }) {
+export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, onFinish, onCancel, onProfileClick }) {
   const startQueue = initialState?.queue ?? problems
   const startIndex = initialState?.index ?? 0
 
@@ -53,8 +54,9 @@ export default function Quiz({ problems, initialState, onFinish, onCancel }) {
         attempts: c.attempts,
         timeMs: c.timeMs,
       })),
+      isAssignment,
     })
-  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems])
+  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment])
 
   function appendToQueue(item) {
     const next = [...queueRef.current, item]
@@ -121,14 +123,26 @@ export default function Quiz({ problems, initialState, onFinish, onCancel }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full">
+        {/* Top bar — profile access (works during assignments too) */}
+        {activeProfile && onProfileClick && (
+          <div className="flex justify-end mb-3">
+            <ProfileButton profile={activeProfile} onClick={onProfileClick} />
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => setShowCancel(true)}
-            className="text-gray-400 hover:text-red-500 text-sm cursor-pointer"
-          >
-            ✕ Cancel
-          </button>
+          {isAssignment ? (
+            <span className="text-amber-700 bg-amber-100 border border-amber-300 font-semibold text-xs px-3 py-1 rounded-full">
+              📚 Assignment
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowCancel(true)}
+              className="text-gray-400 hover:text-red-500 text-sm cursor-pointer"
+            >
+              ✕ Cancel
+            </button>
+          )}
           <div className="flex items-center gap-2">
             {streak >= 2 && (
               <span className="text-orange-500 font-bold text-sm">🔥 {streak} streak!</span>

@@ -58,15 +58,24 @@ src/
 - `ensureSeeded()` (called from `App.jsx` on mount) creates any missing profiles and migrates a legacy top-level `settings.group` into Dad's profile.
 - **Storage layout:**
   - `localStorage['kmath.settings']` → `{ activeProfile: '<id>' | null }` — app-level only.
-  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, settings: { group }, points, sessions: [], activeQuiz? }`.
+  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, role, settings: { group }, points, sessions: [], activeQuiz?, assignment? }`.
+- **Role:** `'teacher'` (Dad, seeded) or `'student'` (Kira, Test, seeded). `ensureSeeded()` backfills `role` on profiles that predate the feature. Helpers: `isTeacher(profile)`, `getAssignableStudents(excludeId)` (returns non-teacher profiles for the teacher's "Assign to..." UI).
 - **`activeQuiz`** (optional) — snapshot of an in-progress quiz for F5 / tab-close recovery:
   ```js
   { problems: [{ moduleId, problem }],    // original queue (for initialCount)
     queue:    [{ moduleId, problem }],    // current queue (grows with retries)
     index, score, streak, problemAttempts, totalAttempts,
-    completedProblems: [{ moduleId, attempts, timeMs }] }
+    completedProblems: [{ moduleId, attempts, timeMs }],
+    isAssignment }                        // true if this quiz came from a teacher assignment
   ```
   Module refs are serialised as `moduleId` (live module object can't be JSON-ified) and rehydrated in `App.hydrateQuizState` via `fromProblemRef`. Cleared on quiz finish/cancel; `input` / `feedback` / timers are NOT persisted (reset on restore).
+- **`assignment`** (optional, students only) — pending task from the teacher:
+  ```js
+  { from: 'dad', fromName: 'Dad',
+    counts: { [moduleId]: N, ... },       // same shape as Custom Mix
+    createdAt: ISO }
+  ```
+  Set via `assignQuizToProfile(studentId, assignment)`. Cleared the moment the student starts it (`clearActiveAssignment()` in `App.startAssignment`); the in-progress quiz then carries `activeQuiz.isAssignment = true`. If the teacher assigns again while a student already has a pending (unstarted) assignment, the new one replaces the old — the UI shows a ⚠ on the "Assign to X" button when a pending assignment exists.
 - **Session entry** (appended on quiz completion):
   ```js
   { date: 'YYYY-MM-DD', startedAt: ISO, group,
@@ -110,6 +119,13 @@ Each module exports a default object:
    - `initialCount`: original queue length before any retries
 - **Auto-save:** `Quiz` has a `useEffect` that writes the current state to `profile.activeQuiz` on every meaningful change (submit, retry). `App` detects `activeQuiz` on mount and on `selectProfile` via `enterProfile()` and routes straight into `Quiz` with `initialState` instead of `home`.
 - **Cancel button** (top-left of Quiz, replaces the old "← Home" link): opens a confirmation modal showing `unsolved × 5 ⭐` as the penalty; confirm calls `onCancel(penalty)` → `App.cancelQuiz` which clears `activeQuiz`, deducts the penalty via `adjustActivePoints(-penalty)` (clamped to 0), and returns to Home. No session is logged for cancelled quizzes.
+- **Assignment mode:** when `Quiz` receives `isAssignment={true}` (set by `App.startAssignment` and preserved across F5 via `activeQuiz.isAssignment`), the Cancel button is replaced by a "📚 Assignment" badge — the student must complete the quiz or pause via F5/tab-close, but cannot cancel out. On `finishQuiz`, `activeQuiz` is cleared and a normal session is logged; the `assignment` field was already cleared on start.
+- **Profile access during a quiz:** `Quiz` renders a top-right `ProfileButton` (shared component at `components/ProfileButton.jsx`, also used by Home) that routes to the Profile page. From Profile the kid can still "Switch profile" during an assignment, but `App.goHome` is context-aware: if the current profile still has an `activeQuiz` when Home is requested, it re-enters the quiz instead of going Home — so students can't escape the assignment gate via Profile → Home. `getActiveProfile()` is read fresh from storage in `goHome` (not the React-state `activeProfile`) because Quiz's auto-save writes to storage without calling `refreshProfile`.
+
+## Teacher / Assignment flow
+- **Teacher UI (Custom Mix, teachers only):** below the existing "Start Quiz" button, an "Or assign to a student" grid appears with one pill per non-teacher profile (`getAssignableStudents(excludeId)`). Clicking a student calls `onAssign(studentId, counts)` → `App.assignCustomMix` which writes `{ from, fromName, counts, createdAt }` to the target student's `profile.assignment`. Home then resets the stepper counts and flashes a "✓ Assigned to {name}" toast. The "Assign to X" button shows a ⚠ when that student already has a pending assignment (new assignment would replace it).
+- **Student UI with pending assignment:** Home's mode switcher, Quick Quiz, and Custom Mix are all hidden — only an `AssignmentCard` renders, showing the teacher's name, total question count, a per-module breakdown (`{count} × {label}`), and a big "Start Assignment →" button. The copy reminds the kid they can't start other quizzes until it's done.
+- **Starting an assignment:** `App.startAssignment` reads `profile.assignment.counts`, generates fresh problems via `generateProblems`, clears `profile.assignment` and any stale `activeQuiz`, then routes into Quiz with `isAssignment=true`. After completion the student's Home reverts to the normal picker.
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic

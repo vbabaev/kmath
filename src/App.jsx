@@ -13,6 +13,8 @@ import {
   logSessionFromResult,
   clearActiveQuiz,
   adjustActivePoints,
+  assignQuizToProfile,
+  clearActiveAssignment,
 } from './profiles'
 import {
   generateProblems,
@@ -41,6 +43,7 @@ function hydrateQuizState(saved) {
     streak: saved.streak ?? 0,
     problemAttempts: saved.problemAttempts ?? 0,
     totalAttempts: saved.totalAttempts ?? 0,
+    isAssignment: !!saved.isAssignment,
   }
 }
 
@@ -50,6 +53,7 @@ export default function App() {
   const [activeProfile, setActiveProfile] = useState(null)
   const [problems, setProblems] = useState([])
   const [savedQuizState, setSavedQuizState] = useState(null)
+  const [isAssignmentQuiz, setIsAssignmentQuiz] = useState(false)
   const [sessionResult, setSessionResult] = useState(null)
 
   function enterProfile(profile) {
@@ -58,9 +62,11 @@ export default function App() {
     if (hydrated) {
       setProblems(hydrated.problems)
       setSavedQuizState(hydrated)
+      setIsAssignmentQuiz(hydrated.isAssignment)
       setScreen('quiz')
     } else {
       setSavedQuizState(null)
+      setIsAssignmentQuiz(false)
       setScreen('home')
     }
   }
@@ -93,6 +99,7 @@ export default function App() {
     clearActiveQuiz()
     setProblems(generatedProblems)
     setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
     setScreen('quiz')
   }
 
@@ -100,11 +107,35 @@ export default function App() {
     startQuiz(generateProblems(countsFromProblems(problems)))
   }
 
+  function startAssignment() {
+    const profile = getActiveProfile()
+    const counts = profile?.assignment?.counts
+    if (!counts) return
+    const generated = generateProblems(counts)
+    clearActiveAssignment()
+    clearActiveQuiz()
+    refreshProfile()
+    setProblems(generated)
+    setSavedQuizState(null)
+    setIsAssignmentQuiz(true)
+    setScreen('quiz')
+  }
+
+  function assignCustomMix(studentId, counts) {
+    assignQuizToProfile(studentId, {
+      from: activeProfile.id,
+      fromName: activeProfile.name,
+      counts,
+      createdAt: new Date().toISOString(),
+    })
+  }
+
   function finishQuiz(result) {
     clearActiveQuiz()
     logSessionFromResult(result)
     refreshProfile()
     setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
     setSessionResult(result)
     setScreen('results')
   }
@@ -115,10 +146,25 @@ export default function App() {
     refreshProfile()
     setProblems([])
     setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
     setScreen('home')
   }
 
   function goHome() {
+    // If there's still an in-progress quiz (e.g. coming back from Profile),
+    // route into Quiz rather than letting the student sneak past the
+    // assignment gate by going Profile → Home.
+    const profile = getActiveProfile()
+    const hydrated = hydrateQuizState(profile?.activeQuiz)
+    if (hydrated) {
+      setActiveProfile(profile)
+      setProblems(hydrated.problems)
+      setSavedQuizState(hydrated)
+      setIsAssignmentQuiz(hydrated.isAssignment)
+      setSessionResult(null)
+      setScreen('quiz')
+      return
+    }
     setScreen('home')
     setProblems([])
     setSessionResult(null)
@@ -141,6 +187,10 @@ export default function App() {
         <Home
           activeProfile={activeProfile}
           onStart={startQuiz}
+          onAssign={(studentId, counts) => {
+            assignCustomMix(studentId, counts)
+          }}
+          onStartAssignment={startAssignment}
           onGroupChange={changeGroup}
           onProfileClick={goProfile}
         />
@@ -148,9 +198,12 @@ export default function App() {
       {screen === 'quiz' && (
         <Quiz
           problems={problems}
+          activeProfile={activeProfile}
           initialState={savedQuizState}
+          isAssignment={isAssignmentQuiz}
           onFinish={finishQuiz}
           onCancel={cancelQuiz}
+          onProfileClick={goProfile}
         />
       )}
       {screen === 'results' && (

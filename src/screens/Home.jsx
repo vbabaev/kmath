@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
-import { getProfileColors } from '../profiles'
+import { MODULES, GROUPS, SUBGROUP_META, getModule, getModulesByGroup, generateProblems } from '../modules'
+import { getProfileColors, isTeacher, getAssignableStudents } from '../profiles'
+import ProfileButton from '../components/ProfileButton'
 
 function buildDisplayList(groupId) {
   const list = []
@@ -95,34 +96,67 @@ function EmptyGroup({ label }) {
   )
 }
 
-function ProfileButton({ profile, onClick }) {
-  const c = getProfileColors(profile.color)
+function AssignmentCard({ assignment, onStart }) {
+  const entries = Object.entries(assignment.counts ?? {}).filter(([, n]) => n > 0)
+  const total = entries.reduce((s, [, n]) => s + n, 0)
+  const breakdown = entries
+    .map(([id, n]) => {
+      const m = getModule(id)
+      return m ? `${n} × ${m.label}` : null
+    })
+    .filter(Boolean)
   return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 ${c.pill} rounded-full pl-1 pr-3 py-1 text-sm font-semibold cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm`}
-      title="View profile"
-    >
-      <span className={`w-7 h-7 rounded-full ${c.bgLight} ${c.border} border flex items-center justify-center text-base`}>
-        {profile.emoji}
-      </span>
-      <span>{profile.name}</span>
-    </button>
+    <div className="bg-gradient-to-br from-amber-100 to-orange-100 border-2 border-amber-300 rounded-3xl p-6 shadow-md">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-5xl">📚</span>
+        <div>
+          <div className="font-bold text-amber-900 text-lg">
+            Assignment from {assignment.fromName ?? 'Teacher'}
+          </div>
+          <div className="text-sm text-amber-800">
+            {total} question{total !== 1 ? 's' : ''} to solve
+          </div>
+        </div>
+      </div>
+      {breakdown.length > 0 && (
+        <ul className="bg-white/60 rounded-2xl px-4 py-3 mb-4 text-sm text-amber-900 space-y-1">
+          {breakdown.map((b, i) => (
+            <li key={i}>• {b}</li>
+          ))}
+        </ul>
+      )}
+      <button
+        onClick={onStart}
+        className="w-full bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-lg cursor-pointer"
+      >
+        Start Assignment →
+      </button>
+      <p className="text-xs text-amber-800 text-center mt-3">
+        You can't start other quizzes until this is done
+      </p>
+    </div>
   )
 }
 
-export default function Home({ activeProfile, onStart, onGroupChange, onProfileClick }) {
+export default function Home({ activeProfile, onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick }) {
   const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
     Object.fromEntries(MODULES.map((m) => [m.id, 0]))
   )
+  const [assignedTo, setAssignedTo] = useState(null)
 
   const displayList = useMemo(() => buildDisplayList(group), [group])
   const groupModuleIds = useMemo(() => getModulesByGroup(group).map((m) => m.id), [group])
   const total = groupModuleIds.reduce((s, id) => s + (counts[id] ?? 0), 0)
   const isEmpty = displayList.length === 0
   const activeGroupLabel = GROUPS.find((g) => g.id === group)?.label ?? ''
+  const teacher = isTeacher(activeProfile)
+  const assignment = activeProfile.assignment ?? null
+  const assignableStudents = useMemo(
+    () => (teacher ? getAssignableStudents(activeProfile.id) : []),
+    [teacher, activeProfile.id]
+  )
 
   function quickQuiz(mod) {
     onStart(generateProblems({ [mod.id]: mod.defaultCount }))
@@ -134,12 +168,29 @@ export default function Home({ activeProfile, onStart, onGroupChange, onProfileC
     onStart(generateProblems(groupCounts))
   }
 
+  function assignCustom(studentId) {
+    if (total === 0) return
+    const groupCounts = Object.fromEntries(groupModuleIds.map((id) => [id, counts[id] ?? 0]))
+    onAssign(studentId, groupCounts)
+    setCounts(Object.fromEntries(MODULES.map((m) => [m.id, 0])))
+    const student = assignableStudents.find((s) => s.id === studentId)
+    if (student) {
+      setAssignedTo(student.name)
+      setTimeout(() => setAssignedTo(null), 2500)
+    }
+  }
+
   function setCount(id, delta) {
     setCounts((prev) => ({ ...prev, [id]: Math.max(0, Math.min(20, (prev[id] ?? 0) + delta)) }))
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center p-6">
+      {assignedTo && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white font-semibold px-5 py-3 rounded-full shadow-lg z-50 animate-[bounce_0.4s_ease-out]">
+          ✓ Assigned to {assignedTo}
+        </div>
+      )}
       <div className="max-w-lg w-full">
         {/* Top bar with profile button */}
         <div className="flex justify-end mb-4">
@@ -169,29 +220,36 @@ export default function Home({ activeProfile, onStart, onGroupChange, onProfileC
           ))}
         </div>
 
+        {/* Student assignment — replaces the whole quiz picker until done. */}
+        {!teacher && assignment && (
+          <AssignmentCard assignment={assignment} onStart={onStartAssignment} />
+        )}
+
         {/* Mode switcher */}
-        <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-gray-100">
-          <button
-            onClick={() => setMode('list')}
-            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-              mode === 'list' ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Quick Quiz
-          </button>
-          <button
-            onClick={() => setMode('custom')}
-            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-              mode === 'custom' ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Custom Mix
-          </button>
-        </div>
+        {!assignment && (
+          <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-gray-100">
+            <button
+              onClick={() => setMode('list')}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                mode === 'list' ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Quick Quiz
+            </button>
+            <button
+              onClick={() => setMode('custom')}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                mode === 'custom' ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {teacher ? 'Custom Mix / Assign' : 'Custom Mix'}
+            </button>
+          </div>
+        )}
 
-        {isEmpty && <EmptyGroup label={activeGroupLabel} />}
+        {!assignment && isEmpty && <EmptyGroup label={activeGroupLabel} />}
 
-        {!isEmpty && mode === 'list' && (
+        {!assignment && !isEmpty && mode === 'list' && (
           <div className="flex flex-col gap-3">
             {displayList.map((item) =>
               item.type === 'module' ? (
@@ -211,7 +269,7 @@ export default function Home({ activeProfile, onStart, onGroupChange, onProfileC
           </div>
         )}
 
-        {!isEmpty && mode === 'custom' && (
+        {!assignment && !isEmpty && mode === 'custom' && (
           <div className="flex flex-col gap-3">
             {displayList.map((item) =>
               item.type === 'module' ? (
@@ -250,6 +308,33 @@ export default function Home({ activeProfile, onStart, onGroupChange, onProfileC
             >
               {total === 0 ? 'Pick at least 1 question' : `Start ${total}-Question Mix →`}
             </button>
+
+            {teacher && assignableStudents.length > 0 && (
+              <div className="mt-2 border-t border-gray-200 pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-center mb-2">
+                  Or assign to a student
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {assignableStudents.map((s) => {
+                    const c = getProfileColors(s.color)
+                    const hasAssignment = !!s.assignment
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => assignCustom(s.id)}
+                        disabled={total === 0}
+                        title={hasAssignment ? `${s.name} already has an assignment — this will replace it` : ''}
+                        className={`${c.pill} font-semibold py-3 rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-default cursor-pointer flex items-center justify-center gap-2 text-sm`}
+                      >
+                        <span className="text-base">{s.emoji}</span>
+                        <span>Assign to {s.name}</span>
+                        {hasAssignment && <span title="already has an assignment">⚠</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

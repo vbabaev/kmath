@@ -3,15 +3,16 @@ import { getSettings, updateSettings } from './settings'
 const PROFILE_PREFIX = 'kmath.profile.'
 
 const DEFAULT_PROFILES = [
-  { id: 'dad',  name: 'Dad',  emoji: '👨', color: 'indigo' },
-  { id: 'kira', name: 'Kira', emoji: '👧', color: 'pink' },
-  { id: 'test', name: 'Test', emoji: '🧪', color: 'emerald' },
+  { id: 'dad',  name: 'Dad',  emoji: '👨', color: 'indigo',  role: 'teacher' },
+  { id: 'kira', name: 'Kira', emoji: '👧', color: 'pink',    role: 'student' },
+  { id: 'test', name: 'Test', emoji: '🧪', color: 'emerald', role: 'student' },
 ]
 
 const PROFILE_DEFAULTS = {
   settings: { group: 'school' },
   points: 0,
   sessions: [],
+  role: 'student',
 }
 
 const COLORS = {
@@ -51,10 +52,18 @@ export function ensureSeeded() {
   const settings = getSettings()
   const legacyGroup = settings.group
   for (const seed of DEFAULT_PROFILES) {
-    if (readProfile(seed.id)) continue
+    const existing = readProfile(seed.id)
+    if (existing) {
+      // Backfill role on profiles that predate the teacher feature.
+      if (!existing.role) {
+        existing.role = seed.role ?? 'student'
+        writeProfile(existing)
+      }
+      continue
+    }
     const profile = {
-      ...seed,
       ...PROFILE_DEFAULTS,
+      ...seed,
       settings: { ...PROFILE_DEFAULTS.settings },
     }
     if (seed.id === 'dad' && legacyGroup) {
@@ -70,6 +79,30 @@ export function ensureSeeded() {
       // ignore
     }
   }
+}
+
+export function isTeacher(profile) {
+  return profile?.role === 'teacher'
+}
+
+export function getAssignableStudents(excludeId) {
+  return getAllProfiles().filter((p) => p.role !== 'teacher' && p.id !== excludeId)
+}
+
+export function assignQuizToProfile(studentId, assignment) {
+  const target = readProfile(studentId)
+  if (!target) return null
+  const next = { ...target, assignment }
+  writeProfile(next)
+  return next
+}
+
+export function clearActiveAssignment() {
+  const current = getActiveProfile()
+  if (!current) return null
+  const { assignment: _drop, ...rest } = current
+  writeProfile(rest)
+  return rest
 }
 
 export function getAllProfiles() {
