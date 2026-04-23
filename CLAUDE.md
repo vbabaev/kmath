@@ -31,9 +31,13 @@ src/
       rectangleCutout.jsx  # L-shaped figure with dashed ghost lines
     word/              # subgroup: 'word'
       proportions.jsx
+    complicatedPercent.jsx      # Extra Math — multi-template % module
+    complicatedPercentData.js   # LIST_PROBLEMS + WORDS banks for the above
     verbal/            # group: 'verbal'
       wordSplit.jsx
       wordSplitData.js # Target words + source pool + indexed pair builder
+      wordGap.jsx
+      wordGapData.js   # 100 words × 3 gap configs each (prefix/middle/suffix), hand-curated decoys
   screens/
     ProfilePicker.jsx  # Netflix-style avatar grid, shown on first load or when switching
     Profile.jsx        # Stats page: points, 30-day heatmap, recent sessions
@@ -111,7 +115,7 @@ Each module exports a default object:
 
 ## Topics Implemented
 
-School Math holds the bulk of modules; Extra Math has the word problems subgroup; Verbal Reasoning has `wordSplit`.
+School Math holds the bulk of modules; Extra Math has Word Problems + `complicatedPercent`; Verbal Reasoning has `wordSplit` and `wordGap`.
 
 - `multiplication` ✖️ — `{ a, b, answer }` — two 2-digit numbers
 - `division` ➗ — `{ dividend, divisor, answer }` — divisor 2–12
@@ -121,15 +125,21 @@ School Math holds the bulk of modules; Extra Math has the word problems subgroup
 - `rounding` 🎯 — `{ type, numStr, answer, answerDisplay }` — round to nearest tenth (X.YZ) or hundredth (X.YZW); 50% chance deciding digit is 4 or 5; integer arithmetic to avoid float issues
 - `percent` 💯 — `{ num, den, pct, simplNum, simplDen, direction }` — convert fraction↔percentage; direction is `'toPercent'` or `'toFraction'`; only denominators dividing 100 (2,4,5,10,20,25,50); accepts any equivalent fraction; custom Input adapts to direction via `problem` prop
 - `perimeters` 📏 — `{ shape, answer, ...dims }` — one of 6 shapes: square `{a}`, rectangle `{w,h}`, rhombus `{a}`, trapezoid `{a,b,c}` (isosceles, legs=c), pentagon `{a}` (regular), cutout `{W,H,cw,ch}` (L-shape, perimeter=2W+2H); SVG with SideLabel/TickMark helpers for diagonal sides
-- **Extra Math** (`group: 'extra'`) — currently only the Word Problems subgroup:
+- **Extra Math** (`group: 'extra'`):
   - **Word Problems subgroup** (📝, `subgroup: 'word'`):
     - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
+  - `complicatedPercent` 🎯 ("Percent Puzzles", pink) — multi-template % module. Every problem's answer is guaranteed to be a whole-number percentage. `generate()` uniformly picks one of three templates and sets `problem.template = 'grid' | 'list' | 'word'`; `View` dispatches to per-template sub-views; `CorrectView` re-renders the same sub-view with `reveal` (highlights what was counted) plus a bouncing "X%" pill. Custom numeric `Input` (digits-only, max 3 chars, with a `%` suffix) includes its own Check-Answer button.
+    - **Grid template** — `{ rows, cols, shaded, answer }`. Three grid configs: 10×10 (1%/cell, shaded ∈ 10..90), 5×4 (5%/cell, shaded ∈ 2..18), 2×5 (10%/cell, shaded ∈ 1..9). Cells are shaded contiguously from the top-left (full rows first, then partial). Reveal recolors shaded cells pink.
+    - **List template** — `{ listId, items, listLabel, questionId, prompt, answer }`. Data in `complicatedPercentData.js` → `LIST_PROBLEMS`: 6 lists (months×12, names×10, colors×10, fruits×10, sports×10, weekdays×5). Every `{ listId, questionId }` pair has a hand-verified `count` that divides the list size into a whole percent (months only allow counts 3/6/9). Reveal highlights matching items in pink; `matchesQuestion(item, listId, questionId)` is a switch-based classifier that mirrors each question's rule (used only for the highlight — the stored `count` is the source of truth for the answer).
+    - **Word template** — `{ word, kind, answer }` where `kind = 'vowels' | 'consonants'`. Word bank (`WORDS`) contains kid-known 4-, 5-, and 10-letter words only — lengths that divide 100 evenly. Vowel set is A/E/I/O/U (Y is a consonant). Reveal highlights matching letters in pink.
+    - Dedup `key` = `cp:<template>:<subkey>`, where `_subkey` is grid size+shaded count / list-id+question-id / word+kind.
 - **Areas subgroup** (📐, `subgroup: 'areas'`) shown under SubgroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
   - `rectangleCutout` 📐 — `{ W, H, cw, ch, answer }` — L-shape SVG (width=370), dashed ghost corner, 4 dimension lines
 - **Verbal Reasoning** (`group: 'verbal'`):
   - `wordSplit` 🧩 — `{ w1, w2, validAnswers: [string], isNone: bool, _key }` — given two source words, find a 4-letter target formed by taking 1–3 letters from end of `w1` + remaining 3–1 from start of `w2`. 50% of problems are "no word" (user clicks **No word** button). Data in `wordSplitData.js`: 60 TARGETS (kid-known 4-letter words), ~400-word SOURCE_POOL (5+ letters, dedup, no targets); `buildPairsMap()` indexes pool by suffix/prefix length 1/2/3 at module load, producing `PAIRS_BY_TARGET` so generation is just a random pick. `canFormTargets(w1, w2)` returns ALL targets a pair can form (pair problems accept any equivalent target); `pickRandomNoPair()` samples until a pair forms zero targets. Custom Input: 4-letter text field (auto-uppercase, A-Z only) + **Check Word** + **No word** buttons; No word auto-submits the `NONE_VALUE` sentinel. `CorrectView` highlights the contributing letters in green and reveals the target in a bouncing pill (or "✓ No 4-letter word" for the no-word case).
+  - `wordGap` 🔤 — `{ word, pos, answer, choices[5], _key }` — show part of a 6- or 7-letter word; pick the 3 letters that complete it from 5 MC options. Data in `wordGapData.js` (`WORDS`): 100 kid-known words, each with 3 `configs` — all three gap positions are used: prefix (`pos:0`), middle (`pos:2`), suffix (`pos + 3 === word.length`). Each config carries 6–8 `decoys` — wrong 3-letter strings hand-picked so NONE forms a valid word when inserted. Watch out for (a) suffix-sharing words like `___KET` for BASKET/BUCKET/JACKET — decoys must avoid other valid prefixes — and (b) middle-gap patterns like `CA___LE` that accept CANDLE/CASTLE/CATTLE/CANTLE, so decoys must avoid NDL/STL/TTL/NTL. `key` = `wg:WORD:pos` for dedup (different gap positions on the same word count as distinct). MC Input auto-submits. **View** gives no positional hint: it renders `before + after` concatenated (for BEAUTY middle gap → "BEY"; prefix → "UTY"; suffix → "BEA") with a generic "Which 3 letters complete the word?" prompt. The kid figures out whether to prepend, append, or insert. **CorrectView** renders `before + answer (emerald-600) + after (muted)` — revealing the gap's location only after a correct answer — and bounces the full word pill. Note: decoys were originally validated only for their config's specific insertion point, so for middle configs it is theoretically possible (though unlikely, given the random-looking 3-letter decoys) that a decoy could form a valid word at a different split — fix individual collisions in the data as they're reported.
 
 ## Fractions Input Detail
 - User picks format first: **Whole number**, **Fraction**, **Mixed number**

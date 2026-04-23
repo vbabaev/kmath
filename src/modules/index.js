@@ -5,12 +5,14 @@ import decimals from './decimals'
 import compare from './compare'
 import rounding from './rounding'
 import percent from './percent'
+import complicatedPercent from './complicatedPercent'
 import perimeters from './perimeters'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './areas/rectangleCutout'
 import proportions from './word/proportions'
 import wordSplit from './verbal/wordSplit'
+import wordGap from './verbal/wordGap'
 
 export const MODULES = [
   multiplication,
@@ -21,11 +23,13 @@ export const MODULES = [
   rounding,
   percent,
   perimeters,
+  complicatedPercent,
   proportions,
   square,
   rectangle,
   rectangleCutout,
   wordSplit,
+  wordGap,
 ]
 
 export const GROUPS = [
