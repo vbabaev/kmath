@@ -54,11 +54,19 @@ export function ensureSeeded() {
   for (const seed of DEFAULT_PROFILES) {
     const existing = readProfile(seed.id)
     if (existing) {
+      let dirty = false
       // Backfill role on profiles that predate the teacher feature.
       if (!existing.role) {
         existing.role = seed.role ?? 'student'
-        writeProfile(existing)
+        dirty = true
       }
+      // Migrate legacy single `assignment` to `assignments` queue.
+      if (existing.assignment && !existing.assignments) {
+        existing.assignments = [{ id: newAssignmentId(), ...existing.assignment }]
+        delete existing.assignment
+        dirty = true
+      }
+      if (dirty) writeProfile(existing)
       continue
     }
     const profile = {
@@ -81,6 +89,10 @@ export function ensureSeeded() {
   }
 }
 
+function newAssignmentId() {
+  return `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
 export function isTeacher(profile) {
   return profile?.role === 'teacher'
 }
@@ -89,20 +101,24 @@ export function getAssignableStudents(excludeId) {
   return getAllProfiles().filter((p) => p.role !== 'teacher' && p.id !== excludeId)
 }
 
-export function assignQuizToProfile(studentId, assignment) {
+export function addAssignmentToProfile(studentId, assignment) {
   const target = readProfile(studentId)
   if (!target) return null
-  const next = { ...target, assignment }
+  const withId = { id: newAssignmentId(), ...assignment }
+  const next = { ...target, assignments: [...(target.assignments ?? []), withId] }
   writeProfile(next)
   return next
 }
 
-export function clearActiveAssignment() {
+/** Pop the first (oldest) assignment from the active profile's queue. */
+export function consumeActiveAssignment() {
   const current = getActiveProfile()
   if (!current) return null
-  const { assignment: _drop, ...rest } = current
-  writeProfile(rest)
-  return rest
+  const queue = current.assignments ?? []
+  if (queue.length === 0) return current
+  const next = { ...current, assignments: queue.slice(1) }
+  writeProfile(next)
+  return next
 }
 
 export function getAllProfiles() {

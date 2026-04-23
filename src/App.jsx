@@ -13,8 +13,8 @@ import {
   logSessionFromResult,
   clearActiveQuiz,
   adjustActivePoints,
-  assignQuizToProfile,
-  clearActiveAssignment,
+  addAssignmentToProfile,
+  consumeActiveAssignment,
 } from './profiles'
 import {
   generateProblems,
@@ -104,15 +104,23 @@ export default function App() {
   }
 
   function playAgain() {
+    // If the student still has assignments queued, don't let Play Again sneak
+    // a fresh regular quiz past the gate — send them back to Home where the
+    // next assignment card is waiting.
+    const profile = getActiveProfile()
+    if ((profile?.assignments ?? []).length > 0) {
+      goHome()
+      return
+    }
     startQuiz(generateProblems(countsFromProblems(problems)))
   }
 
   function startAssignment() {
     const profile = getActiveProfile()
-    const counts = profile?.assignment?.counts
-    if (!counts) return
-    const generated = generateProblems(counts)
-    clearActiveAssignment()
+    const next = (profile?.assignments ?? [])[0]
+    if (!next) return
+    const generated = generateProblems(next.counts)
+    consumeActiveAssignment()
     clearActiveQuiz()
     refreshProfile()
     setProblems(generated)
@@ -122,7 +130,7 @@ export default function App() {
   }
 
   function assignCustomMix(studentId, counts) {
-    assignQuizToProfile(studentId, {
+    addAssignmentToProfile(studentId, {
       from: activeProfile.id,
       fromName: activeProfile.name,
       counts,

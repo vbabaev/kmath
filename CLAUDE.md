@@ -18,6 +18,8 @@ src/
   components/
     ShapeCanvas.jsx    # SVG helpers: ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE
     Heatmap.jsx        # 30-day activity grid (5 intensity tiers)
+    ProfileButton.jsx  # Avatar pill shown on Home + Quiz, opens Profile screen
+    ModuleTag.jsx      # Module pill (emoji + label + ×N) used in assignment cards
   modules/
     index.js           # MODULES, GROUPS, SUBGROUP_META, getModule(id), getModulesByGroup(groupId)
     multiplication.jsx
@@ -69,13 +71,17 @@ src/
     isAssignment }                        // true if this quiz came from a teacher assignment
   ```
   Module refs are serialised as `moduleId` (live module object can't be JSON-ified) and rehydrated in `App.hydrateQuizState` via `fromProblemRef`. Cleared on quiz finish/cancel; `input` / `feedback` / timers are NOT persisted (reset on restore).
-- **`assignment`** (optional, students only) — pending task from the teacher:
+- **`assignments`** (optional, students only) — **FIFO queue** of pending tasks from teachers:
   ```js
-  { from: 'dad', fromName: 'Dad',
-    counts: { [moduleId]: N, ... },       // same shape as Custom Mix
-    createdAt: ISO }
+  [{ id: 'a_<ts>_<rand>',                 // unique (collision-proof replay)
+     from: 'dad', fromName: 'Dad',
+     counts: { [moduleId]: N, ... },      // same shape as Custom Mix
+     createdAt: ISO }, ...]
   ```
-  Set via `assignQuizToProfile(studentId, assignment)`. Cleared the moment the student starts it (`clearActiveAssignment()` in `App.startAssignment`); the in-progress quiz then carries `activeQuiz.isAssignment = true`. If the teacher assigns again while a student already has a pending (unstarted) assignment, the new one replaces the old — the UI shows a ⚠ on the "Assign to X" button when a pending assignment exists.
+  Append via `addAssignmentToProfile(studentId, assignment)` (IDs are generated internally). The student works through the queue head-first: `consumeActiveAssignment()` pops the first element when `App.startAssignment` fires, and the in-progress quiz carries `activeQuiz.isAssignment = true`. Legacy single-field `assignment` entries are migrated to `[assignment]` by `ensureSeeded` on next load.
+  - Teacher's "Assign to {Name}" button shows a `+N` badge when the student already has N queued; new assignments **append**, they don't replace.
+  - Student's Home replaces the quiz picker with a stacked list: `ActiveAssignmentCard` (first in queue, amber gradient, Start button) followed by `QueuedAssignmentCard` entries labelled "Up next" with `#2`, `#3`, …
+  - Each card shows **module tags** via the shared `ModuleTag` component (`components/ModuleTag.jsx`) — a pill per non-zero module with the module's emoji, label, and `× N` count, tinted with the module's own `bgLight` / `border`. `moduleTagsFromCounts(counts)` is the helper that turns a counts map into `[{ moduleId, count }]`.
 - **Session entry** (appended on quiz completion):
   ```js
   { date: 'YYYY-MM-DD', startedAt: ISO, group,
@@ -123,9 +129,10 @@ Each module exports a default object:
 - **Profile access during a quiz:** `Quiz` renders a top-right `ProfileButton` (shared component at `components/ProfileButton.jsx`, also used by Home) that routes to the Profile page. From Profile the kid can still "Switch profile" during an assignment, but `App.goHome` is context-aware: if the current profile still has an `activeQuiz` when Home is requested, it re-enters the quiz instead of going Home — so students can't escape the assignment gate via Profile → Home. `getActiveProfile()` is read fresh from storage in `goHome` (not the React-state `activeProfile`) because Quiz's auto-save writes to storage without calling `refreshProfile`.
 
 ## Teacher / Assignment flow
-- **Teacher UI (Custom Mix, teachers only):** below the existing "Start Quiz" button, an "Or assign to a student" grid appears with one pill per non-teacher profile (`getAssignableStudents(excludeId)`). Clicking a student calls `onAssign(studentId, counts)` → `App.assignCustomMix` which writes `{ from, fromName, counts, createdAt }` to the target student's `profile.assignment`. Home then resets the stepper counts and flashes a "✓ Assigned to {name}" toast. The "Assign to X" button shows a ⚠ when that student already has a pending assignment (new assignment would replace it).
-- **Student UI with pending assignment:** Home's mode switcher, Quick Quiz, and Custom Mix are all hidden — only an `AssignmentCard` renders, showing the teacher's name, total question count, a per-module breakdown (`{count} × {label}`), and a big "Start Assignment →" button. The copy reminds the kid they can't start other quizzes until it's done.
-- **Starting an assignment:** `App.startAssignment` reads `profile.assignment.counts`, generates fresh problems via `generateProblems`, clears `profile.assignment` and any stale `activeQuiz`, then routes into Quiz with `isAssignment=true`. After completion the student's Home reverts to the normal picker.
+- **Teacher UI (Custom Mix, teachers only):** below the existing "Start Quiz" button, an "Or assign to a student" grid appears with one pill per non-teacher profile (`getAssignableStudents(excludeId)`). Clicking a student calls `onAssign(studentId, counts)` → `App.assignCustomMix` which **appends** `{ id, from, fromName, counts, createdAt }` to the target student's `profile.assignments` queue. Home then resets the stepper counts and flashes a "✓ Assigned to {name}" toast. Each student pill carries a `+N` badge showing how many items are already queued for that student.
+- **Student UI with pending assignments:** Home's mode switcher, Quick Quiz, and Custom Mix are all hidden. An `ActiveAssignmentCard` renders the head of the queue (teacher's name, total question count, **module tags** for each non-zero module, and a big "Start Assignment →" button), followed by an "Up next" list of `QueuedAssignmentCard`s (muted style, numbered `#2`, `#3`, …). The copy reminds the kid they can't start other quizzes until the current assignment (and any queued) are done.
+- **Starting an assignment:** `App.startAssignment` reads the first element of `profile.assignments`, generates fresh problems via `generateProblems`, pops it with `consumeActiveAssignment()`, clears any stale `activeQuiz`, then routes into Quiz with `isAssignment=true`. On completion, `finishQuiz` routes to Results; from there the kid returns to Home and, if more assignments remain, the next one becomes the new active card.
+- **Escape-proofing follow-up:** Results' "Play Again" would otherwise start a fresh regular quiz and bypass the queue. `App.playAgain` now reads the current profile and — if `assignments.length > 0` — calls `goHome()` (which itself routes back into Quiz if an `activeQuiz` is still live, or into the assignment card on Home otherwise).
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic

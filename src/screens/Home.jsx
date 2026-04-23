@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { MODULES, GROUPS, SUBGROUP_META, getModule, getModulesByGroup, generateProblems } from '../modules'
+import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
 import { getProfileColors, isTeacher, getAssignableStudents } from '../profiles'
 import ProfileButton from '../components/ProfileButton'
+import ModuleTag, { moduleTagsFromCounts } from '../components/ModuleTag'
 
 function buildDisplayList(groupId) {
   const list = []
@@ -96,18 +97,16 @@ function EmptyGroup({ label }) {
   )
 }
 
-function AssignmentCard({ assignment, onStart }) {
-  const entries = Object.entries(assignment.counts ?? {}).filter(([, n]) => n > 0)
-  const total = entries.reduce((s, [, n]) => s + n, 0)
-  const breakdown = entries
-    .map(([id, n]) => {
-      const m = getModule(id)
-      return m ? `${n} × ${m.label}` : null
-    })
-    .filter(Boolean)
+function assignmentTotal(assignment) {
+  return Object.values(assignment.counts ?? {}).reduce((s, n) => s + (n || 0), 0)
+}
+
+function ActiveAssignmentCard({ assignment, onStart, queuedCount }) {
+  const total = assignmentTotal(assignment)
+  const tags = moduleTagsFromCounts(assignment.counts)
   return (
     <div className="bg-gradient-to-br from-amber-100 to-orange-100 border-2 border-amber-300 rounded-3xl p-6 shadow-md">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-3">
         <span className="text-5xl">📚</span>
         <div>
           <div className="font-bold text-amber-900 text-lg">
@@ -118,12 +117,12 @@ function AssignmentCard({ assignment, onStart }) {
           </div>
         </div>
       </div>
-      {breakdown.length > 0 && (
-        <ul className="bg-white/60 rounded-2xl px-4 py-3 mb-4 text-sm text-amber-900 space-y-1">
-          {breakdown.map((b, i) => (
-            <li key={i}>• {b}</li>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {tags.map(({ moduleId, count }) => (
+            <ModuleTag key={moduleId} moduleId={moduleId} count={count} />
           ))}
-        </ul>
+        </div>
       )}
       <button
         onClick={onStart}
@@ -132,8 +131,32 @@ function AssignmentCard({ assignment, onStart }) {
         Start Assignment →
       </button>
       <p className="text-xs text-amber-800 text-center mt-3">
-        You can't start other quizzes until this is done
+        {queuedCount > 0
+          ? `You can't start other quizzes until this (and ${queuedCount} more queued) is done`
+          : `You can't start other quizzes until this is done`}
       </p>
+    </div>
+  )
+}
+
+function QueuedAssignmentCard({ assignment, position }) {
+  const total = assignmentTotal(assignment)
+  const tags = moduleTagsFromCounts(assignment.counts)
+  return (
+    <div className="bg-white border-2 border-amber-200 rounded-2xl px-4 py-3 shadow-sm">
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">#{position}</span>
+        <span className="text-sm font-semibold text-gray-700">
+          From {assignment.fromName ?? 'Teacher'} · {total} question{total !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {tags.map(({ moduleId, count }) => (
+            <ModuleTag key={moduleId} moduleId={moduleId} count={count} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -152,7 +175,8 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
   const isEmpty = displayList.length === 0
   const activeGroupLabel = GROUPS.find((g) => g.id === group)?.label ?? ''
   const teacher = isTeacher(activeProfile)
-  const assignment = activeProfile.assignment ?? null
+  const assignments = activeProfile.assignments ?? []
+  const hasAssignments = !teacher && assignments.length > 0
   const assignableStudents = useMemo(
     () => (teacher ? getAssignableStudents(activeProfile.id) : []),
     [teacher, activeProfile.id]
@@ -220,13 +244,30 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
           ))}
         </div>
 
-        {/* Student assignment — replaces the whole quiz picker until done. */}
-        {!teacher && assignment && (
-          <AssignmentCard assignment={assignment} onStart={onStartAssignment} />
+        {/* Student assignment queue — replaces the whole quiz picker until done. */}
+        {hasAssignments && (
+          <div className="flex flex-col gap-3">
+            <ActiveAssignmentCard
+              assignment={assignments[0]}
+              onStart={onStartAssignment}
+              queuedCount={assignments.length - 1}
+            />
+            {assignments.length > 1 && (
+              <>
+                <div className="flex items-center gap-2 mt-2 px-1">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Up next</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                {assignments.slice(1).map((a, i) => (
+                  <QueuedAssignmentCard key={a.id ?? i} assignment={a} position={i + 2} />
+                ))}
+              </>
+            )}
+          </div>
         )}
 
         {/* Mode switcher */}
-        {!assignment && (
+        {!hasAssignments && (
           <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-gray-100">
             <button
               onClick={() => setMode('list')}
@@ -247,9 +288,9 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
           </div>
         )}
 
-        {!assignment && isEmpty && <EmptyGroup label={activeGroupLabel} />}
+        {!hasAssignments && isEmpty && <EmptyGroup label={activeGroupLabel} />}
 
-        {!assignment && !isEmpty && mode === 'list' && (
+        {!hasAssignments && !isEmpty && mode === 'list' && (
           <div className="flex flex-col gap-3">
             {displayList.map((item) =>
               item.type === 'module' ? (
@@ -269,7 +310,7 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
           </div>
         )}
 
-        {!assignment && !isEmpty && mode === 'custom' && (
+        {!hasAssignments && !isEmpty && mode === 'custom' && (
           <div className="flex flex-col gap-3">
             {displayList.map((item) =>
               item.type === 'module' ? (
@@ -317,18 +358,22 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
                 <div className="grid grid-cols-2 gap-2">
                   {assignableStudents.map((s) => {
                     const c = getProfileColors(s.color)
-                    const hasAssignment = !!s.assignment
+                    const queued = (s.assignments ?? []).length
                     return (
                       <button
                         key={s.id}
                         onClick={() => assignCustom(s.id)}
                         disabled={total === 0}
-                        title={hasAssignment ? `${s.name} already has an assignment — this will replace it` : ''}
+                        title={queued > 0 ? `${s.name} already has ${queued} queued — this will be added to the queue` : ''}
                         className={`${c.pill} font-semibold py-3 rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-default cursor-pointer flex items-center justify-center gap-2 text-sm`}
                       >
                         <span className="text-base">{s.emoji}</span>
                         <span>Assign to {s.name}</span>
-                        {hasAssignment && <span title="already has an assignment">⚠</span>}
+                        {queued > 0 && (
+                          <span className="bg-white/70 text-gray-700 rounded-full text-xs px-2 py-0.5 font-bold">
+                            +{queued}
+                          </span>
+                        )}
                       </button>
                     )
                   })}
