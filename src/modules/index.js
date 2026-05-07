@@ -8,6 +8,7 @@ import percent from './percent'
 import complicatedPercent from './complicatedPercent'
 import primeSquareCubic from './primeSquareCubic'
 import perimeters from './perimeters'
+import angles from './angles'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './rectangleCutout'
@@ -25,6 +26,7 @@ export const MODULES = [
   rounding,
   percent,
   perimeters,
+  angles,
   complicatedPercent,
   primeSquareCubic,
   proportions,

@@ -27,6 +27,7 @@ src/
     fractions.jsx      # Custom Input with format picker (whole/fraction/mixed)
     decimals.jsx
     rounding.jsx       # Round to nearest tenth or hundredth; integer arithmetic
+    angles.jsx         # School Math — estimate / classify / triangle missing angle
     areas/             # subgroup: 'areas' (School Math)
       square.jsx
       rectangle.jsx
@@ -179,6 +180,11 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
 - `rounding` 🎯 — `{ type, numStr, answer, answerDisplay }` — round to nearest tenth (X.YZ) or hundredth (X.YZW); 50% chance deciding digit is 4 or 5; integer arithmetic to avoid float issues
 - `percent` 💯 — `{ num, den, pct, simplNum, simplDen, direction }` — convert fraction↔percentage; direction is `'toPercent'` or `'toFraction'`; only denominators dividing 100 (2,4,5,10,20,25,50); accepts any equivalent fraction; custom Input adapts to direction via `problem` prop
 - `perimeters` 📏 — `{ shape, answer, ...dims }` — one of 6 shapes: square `{a}`, rectangle `{w,h}`, rhombus `{a}`, trapezoid `{a,b,c}` (isosceles, legs=c), pentagon `{a}` (regular), cutout `{W,H,cw,ch}` (L-shape, perimeter=2W+2H); SVG with SideLabel/TickMark helpers for diagonal sides
+- `angles` 📐 — multi-kind angle module (school math, sky color). `generate()` picks one of three `kind`s with equal probability:
+  - **estimate** — `{ kind:'estimate', angle, rotation, answer, choices: [30,45,60,90,120,135,150,180] }`. The displayed angle is `answer ± up to 3°` (jitter never crosses the half-gap to a neighboring bucket; the smallest gap between buckets is 15°). For `answer=180`, jitter is clamped to `[-3, 0]` so the visual stays a non-reflex straight line. 4×2 button grid.
+  - **classify** — `{ kind:'classify', angle, rotation, answer:'acute'|'right'|'obtuse'|'straight'|'reflex', choices: [...5 ids] }`. Categories pull from fixed ranges in `CATEGORIES` (multiples of 5). Right is exactly 90°, straight is exactly 180°. 5×1 button grid showing labels (Acute/Right/Obtuse/Straight/Reflex).
+  - **triangle** — `{ kind:'triangle', angles:[a,b,c], hiddenIdx, answer, choices }`. Three angles, each multiple of 5 in [25, 120], summing to 180. One vertex labelled `?`. Distractors are `answer ± {5..30}` excluding the two shown angles; 4-button grid.
+  - All three `View`s render an SVG canvas + prompt; `CorrectView` overlays a bouncing answer pill (and for triangle, recolors the hidden label green with its value). `AngleCanvas` always draws ray 1 along `rotation°` and ray 2 along `rotation + angle°` (CCW); `TriangleCanvas` lays vertices via law of sines from a unit base AB and rescales to fit. Custom MC `Input` auto-submits on click.
 - **Extra Math** (`group: 'extra'`):
   - **Word Problems subgroup** (📝, `subgroup: 'word'`):
     - `proportions` 💱 — `{ story, question, item1-3, aVal1-3($), bVal1-2(£), answer(£), choices[4] }` — currency exchange; 5 settings (NYC trip, US website, airport, street market, fan shop); 14 names, ~40 items; 8 rates; all whole numbers; 2×2 MC grid, auto-submits
