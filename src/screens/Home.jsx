@@ -161,7 +161,7 @@ function QueuedAssignmentCard({ assignment, position }) {
   )
 }
 
-export default function Home({ activeProfile, onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick }) {
+export default function Home({ activeProfile, onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
   const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
@@ -216,8 +216,15 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
         </div>
       )}
       <div className="max-w-lg w-full">
-        {/* Top bar with profile button */}
-        <div className="flex justify-end mb-4">
+        {/* Top bar with shop + profile buttons */}
+        <div className="flex justify-end items-center gap-2 mb-4">
+          <button
+            onClick={onShopClick}
+            className="bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all rounded-full px-4 py-2 shadow-sm cursor-pointer flex items-center gap-1.5 text-sm font-semibold text-gray-700"
+          >
+            <span>🛍️</span>
+            <span>Shop</span>
+          </button>
           <ProfileButton profile={activeProfile} onClick={onProfileClick} />
         </div>
 

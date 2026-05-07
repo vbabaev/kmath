@@ -13,6 +13,12 @@ const PROFILE_DEFAULTS = {
   points: 0,
   sessions: [],
   role: 'student',
+  packages: [],
+}
+
+export const SHOP_PACKAGES = {
+  '15min': { type: '15min', label: '15 iPad minutes', minutes: 15, cost: 300,  emoji: '📱' },
+  '60min': { type: '60min', label: '60 iPad minutes', minutes: 60, cost: 1100, emoji: '⏰' },
 }
 
 const COLORS = {
@@ -66,6 +72,11 @@ export function ensureSeeded() {
         delete existing.assignment
         dirty = true
       }
+      // Backfill packages list for profiles that predate the shop feature.
+      if (!Array.isArray(existing.packages)) {
+        existing.packages = []
+        dirty = true
+      }
       if (dirty) writeProfile(existing)
       continue
     }
@@ -91,6 +102,59 @@ export function ensureSeeded() {
 
 function newAssignmentId() {
   return `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function newPackageId() {
+  return `pkg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function buyPackage(profileId, type) {
+  const spec = SHOP_PACKAGES[type]
+  if (!spec) return { ok: false, error: 'Unknown package' }
+  const target = readProfile(profileId)
+  if (!target) return { ok: false, error: 'Profile not found' }
+  if (target.role === 'teacher') return { ok: false, error: 'Teachers cannot buy packages' }
+  const balance = target.points ?? 0
+  if (balance < spec.cost) return { ok: false, error: 'Not enough stars' }
+  const pkg = {
+    id: newPackageId(),
+    type: spec.type,
+    label: spec.label,
+    minutes: spec.minutes,
+    cost: spec.cost,
+    emoji: spec.emoji,
+    createdAt: new Date().toISOString(),
+    status: 'active',
+    usedAt: null,
+  }
+  const next = {
+    ...target,
+    points: balance - spec.cost,
+    packages: [...(target.packages ?? []), pkg],
+  }
+  writeProfile(next)
+  return { ok: true, profile: next, package: pkg }
+}
+
+export function setPackageStatus(profileId, packageId, status) {
+  if (status !== 'active' && status !== 'used') return null
+  const target = readProfile(profileId)
+  if (!target) return null
+  const packages = (target.packages ?? []).map((p) =>
+    p.id === packageId
+      ? { ...p, status, usedAt: status === 'used' ? new Date().toISOString() : null }
+      : p
+  )
+  const next = { ...target, packages }
+  writeProfile(next)
+  return next
+}
+
+/** For the teacher view — returns [{ student, packages }] for every non-teacher profile. */
+export function getAllStudentPackages() {
+  return getAllProfiles()
+    .filter((p) => p.role !== 'teacher')
+    .map((student) => ({ student, packages: student.packages ?? [] }))
 }
 
 export function isTeacher(profile) {

@@ -6,6 +6,7 @@ import compare from './compare'
 import rounding from './rounding'
 import percent from './percent'
 import complicatedPercent from './complicatedPercent'
+import primeSquareCubic from './primeSquareCubic'
 import perimeters from './perimeters'
 import square from './areas/square'
 import rectangle from './areas/rectangle'
@@ -13,6 +14,7 @@ import rectangleCutout from './rectangleCutout'
 import proportions from './word/proportions'
 import wordSplit from './verbal/wordSplit'
 import wordGap from './verbal/wordGap'
+import letterMath from './verbal/letterMath'
 
 export const MODULES = [
   multiplication,
@@ -24,12 +26,14 @@ export const MODULES = [
   percent,
   perimeters,
   complicatedPercent,
+  primeSquareCubic,
   proportions,
   square,
   rectangle,
   rectangleCutout,
   wordSplit,
   wordGap,
+  letterMath,
 ]
 
 export const GROUPS = [

@@ -4,6 +4,7 @@ import Quiz from './screens/Quiz'
 import Results from './screens/Results'
 import ProfilePicker from './screens/ProfilePicker'
 import Profile from './screens/Profile'
+import Shop from './screens/Shop'
 import {
   ensureSeeded,
   getActiveProfile,
@@ -15,6 +16,8 @@ import {
   adjustActivePoints,
   addAssignmentToProfile,
   consumeActiveAssignment,
+  buyPackage,
+  setPackageStatus,
 } from './profiles'
 import {
   generateProblems,
@@ -55,6 +58,7 @@ export default function App() {
   const [savedQuizState, setSavedQuizState] = useState(null)
   const [isAssignmentQuiz, setIsAssignmentQuiz] = useState(false)
   const [sessionResult, setSessionResult] = useState(null)
+  const [shopReloadKey, setShopReloadKey] = useState(0)
 
   function enterProfile(profile) {
     setActiveProfile(profile)
@@ -182,8 +186,24 @@ export default function App() {
     setScreen('profile')
   }
 
+  function goShop() {
+    setShopReloadKey((k) => k + 1)
+    setScreen('shop')
+  }
+
   function goPicker() {
     setScreen('profilePicker')
+  }
+
+  function handleBuyPackage(type) {
+    const result = buyPackage(activeProfile.id, type)
+    if (result.ok) refreshProfile()
+    return result
+  }
+
+  function handleSetPackageStatus(studentId, packageId, status) {
+    setPackageStatus(studentId, packageId, status)
+    setShopReloadKey((k) => k + 1)
   }
 
   if (screen === null) return null
@@ -201,6 +221,7 @@ export default function App() {
           onStartAssignment={startAssignment}
           onGroupChange={changeGroup}
           onProfileClick={goProfile}
+          onShopClick={goShop}
         />
       )}
       {screen === 'quiz' && (
@@ -222,7 +243,21 @@ export default function App() {
         />
       )}
       {screen === 'profile' && activeProfile && (
-        <Profile profile={activeProfile} onHome={goHome} onSwitch={goPicker} />
+        <Profile
+          profile={activeProfile}
+          onHome={goHome}
+          onSwitch={goPicker}
+          onShop={goShop}
+        />
+      )}
+      {screen === 'shop' && activeProfile && (
+        <Shop
+          profile={activeProfile}
+          onBack={goHome}
+          onBuy={handleBuyPackage}
+          onToggleStatus={handleSetPackageStatus}
+          reloadKey={shopReloadKey}
+        />
       )}
     </div>
   )

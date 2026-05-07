@@ -9,7 +9,10 @@
       "Bash(npm run:*)",
       "Bash(for f:*)",
       "Bash(npx vite:*)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(git mv *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl *)"
     ]
   }
 }

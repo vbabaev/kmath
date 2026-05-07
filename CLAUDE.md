@@ -10,10 +10,10 @@ A game-like React web app for a 5th grader to practice across multiple top-level
 ## Project Structure
 ```
 src/
-  App.jsx              # Root — screen state machine + active-profile state, routes to Profile/Picker/Home/Quiz/Results
+  App.jsx              # Root — screen state machine + active-profile state, routes to Profile/Picker/Home/Quiz/Results/Shop
   main.jsx             # Entry point
   settings.js          # Thin generic wrapper over localStorage['kmath.settings'] (app-level, e.g. activeProfile)
-  profiles.js          # Profile CRUD + session logging (localStorage['kmath.profile.<id>'])
+  profiles.js          # Profile CRUD + session logging + shop helpers (localStorage['kmath.profile.<id>'])
   index.css            # Only contains: @import "tailwindcss";
   components/
     ShapeCanvas.jsx    # SVG helpers: ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE
@@ -35,17 +35,20 @@ src/
       proportions.jsx
     complicatedPercent.jsx      # Extra Math — multi-template % module
     complicatedPercentData.js   # LIST_PROBLEMS + WORDS banks for the above
+    primeSquareCubic.jsx        # Extra Math — pick the row with prime/square/cube
     verbal/            # group: 'verbal'
       wordSplit.jsx
       wordSplitData.js # Target words + source pool + indexed pair builder
       wordGap.jsx
       wordGapData.js   # 100 words × 3 gap configs each (prefix/middle/suffix), hand-curated decoys
+      letterMath.jsx   # A–E stand for numbers; solve equation, pick the matching letter
   screens/
     ProfilePicker.jsx  # Netflix-style avatar grid, shown on first load or when switching
     Profile.jsx        # Stats page: points, 30-day heatmap, recent sessions
-    Home.jsx           # Group pill tabs + Quick Quiz/Custom Mix; profile pill in top-right
+    Home.jsx           # Group pill tabs + Quick Quiz/Custom Mix; Shop + profile pill in top-right
     Quiz.jsx           # Consumes problems: [{ module, problem }]
     Results.jsx        # Accuracy % + score
+    Shop.jsx           # Student: buy 15/60-min iPad packages with stars. Teacher: view/toggle packages per student.
 ```
 
 ## Groups & Subgroups
@@ -60,7 +63,7 @@ src/
 - `ensureSeeded()` (called from `App.jsx` on mount) creates any missing profiles and migrates a legacy top-level `settings.group` into Dad's profile.
 - **Storage layout:**
   - `localStorage['kmath.settings']` → `{ activeProfile: '<id>' | null }` — app-level only.
-  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, role, settings: { group }, points, sessions: [], activeQuiz?, assignment? }`.
+  - `localStorage['kmath.profile.<id>']` → `{ id, name, emoji, color, role, settings: { group }, points, sessions: [], packages: [], activeQuiz?, assignments? }`.
 - **Role:** `'teacher'` (Dad, seeded) or `'student'` (Kira, Test, seeded). `ensureSeeded()` backfills `role` on profiles that predate the feature. Helpers: `isTeacher(profile)`, `getAssignableStudents(excludeId)` (returns non-teacher profiles for the teacher's "Assign to..." UI).
 - **`activeQuiz`** (optional) — snapshot of an in-progress quiz for F5 / tab-close recovery:
   ```js
@@ -134,6 +137,23 @@ Each module exports a default object:
 - **Starting an assignment:** `App.startAssignment` reads the first element of `profile.assignments`, generates fresh problems via `generateProblems`, pops it with `consumeActiveAssignment()`, clears any stale `activeQuiz`, then routes into Quiz with `isAssignment=true`. On completion, `finishQuiz` routes to Results; from there the kid returns to Home and, if more assignments remain, the next one becomes the new active card.
 - **Escape-proofing follow-up:** Results' "Play Again" would otherwise start a fresh regular quiz and bypass the queue. `App.playAgain` now reads the current profile and — if `assignments.length > 0` — calls `goHome()` (which itself routes back into Quiz if an `activeQuiz` is still live, or into the assignment card on Home otherwise).
 
+## Shop (iPad-time packages)
+- **Entry points:** "🛍️ Shop" pill in top-right of `Home` (next to the profile pill) and a "🛍️ Shop" link in `Profile`'s top action row. App-level screen state is `'shop'`; `App.goShop()` increments `shopReloadKey` to force the teacher view to re-read storage on entry.
+- **Catalog** (`SHOP_PACKAGES` in `profiles.js`): currently two items, `'15min'` (300⭐) and `'60min'` (1100⭐). Add entries here and they'll appear automatically — `Shop.jsx` iterates `PACKAGE_ORDER`.
+- **Storage:** each student profile has a `packages: []` array. `ensureSeeded` backfills `packages: []` on profiles that predate the feature. Teachers have no `packages` (they can't buy).
+- **Package shape:**
+  ```js
+  { id: 'pkg_<ts>_<rand>',
+    type: '15min' | '60min',
+    label, minutes, cost, emoji,    // denormalized from SHOP_PACKAGES for display stability
+    createdAt: ISO,
+    status: 'active' | 'used',
+    usedAt: ISO | null }
+  ```
+- **Purchase flow (student):** `StudentShop` shows the current balance, two `BuyCard`s (disabled + "Need X more" caption if balance < cost), and a list of already-bought packages (newest first, active highlighted emerald, used dimmed + strike-through). Clicking a card opens `ConfirmModal` → calls `App.handleBuyPackage(type)` → `profiles.buyPackage(profileId, type)` (validates balance server-side, debits `profile.points`, appends package) → `refreshProfile()`. A green toast confirms success; `{ok:false, error}` surfaces an inline warning toast.
+- **Teacher flow:** `TeacherShop` tabs between "Active" (default) and "Used" with counts in the tab labels; within each tab, packages are grouped under each student's name (colored via their profile colors). Students with zero packages in the active tab are hidden. Each row has a toggle button — "Mark used" (active→used, sets `usedAt`) or "Restore" (used→active, clears `usedAt`). Toggle calls `App.handleSetPackageStatus(studentId, pkgId, nextStatus)` → `profiles.setPackageStatus(...)` → bumps `shopReloadKey` to re-aggregate. `getAllStudentPackages()` returns `[{ student, packages }]` across all non-teacher profiles; the screen filters/sorts in-memory.
+- **Balance checks are single-sided**: `buyPackage` refuses if `points < cost`. No refunds when the teacher toggles status — `status` is purely bookkeeping, independent of stars.
+
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic
 - **Custom Mix**: stepper (0–20) per topic, problems shuffled together
@@ -149,7 +169,7 @@ Each module exports a default object:
 
 ## Topics Implemented
 
-School Math holds the bulk of modules; Extra Math has Word Problems + `complicatedPercent`; Verbal Reasoning has `wordSplit` and `wordGap`.
+School Math holds the bulk of modules; Extra Math has Word Problems + `complicatedPercent` + `primeSquareCubic` + `rectangleCutout`; Verbal Reasoning has `wordSplit`, `wordGap`, and `letterMath`.
 
 - `multiplication` ✖️ — `{ a, b, answer }` — two 2-digit numbers
 - `division` ➗ — `{ dividend, divisor, answer }` — divisor 2–12
@@ -167,6 +187,7 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
     - **List template** — `{ listId, items, listLabel, questionId, prompt, answer }`. Data in `complicatedPercentData.js` → `LIST_PROBLEMS`: 6 lists (months×12, names×10, colors×10, fruits×10, sports×10, weekdays×5). Every `{ listId, questionId }` pair has a hand-verified `count` that divides the list size into a whole percent (months only allow counts 3/6/9). Reveal highlights matching items in pink; `matchesQuestion(item, listId, questionId)` is a switch-based classifier that mirrors each question's rule (used only for the highlight — the stored `count` is the source of truth for the answer).
     - **Word template** — `{ word, kind, answer }` where `kind = 'vowels' | 'consonants'`. Word bank (`WORDS`) contains kid-known 4-, 5-, and 10-letter words only — lengths that divide 100 evenly. Vowel set is A/E/I/O/U (Y is a consonant). Reveal highlights matching letters in pink.
     - Dedup `key` = `cp:<template>:<subkey>`, where `_subkey` is grid size+shaded count / list-id+question-id / word+kind.
+  - `primeSquareCubic` 🎲 ("Number Trio", violet) — `{ rows: [{prime, square, cube}]×5, answer: number }`. Show 5 rows under three column headers (Prime / Square / Cube); the kid clicks the row where all three values fit their column. Auto-submits on click. Pools: primes < 60, squares 1²..12² (≤144), cubes 1³..6³ (≤216). Generation picks one fully-correct row, then 4 wrong rows by corrupting 1 or 2 of the three fields with a hand-checked decoy (decoys are guaranteed not to belong to their target set), so every wrong row has exactly 1 or 2 correct cells. Custom MC `Input` renders the table with letters A–E; selected/correct/wrong rows recolor by inferring feedback from `disabled + value === answer`. Dedup `key` is the sorted set of row triples (so the same 5 triples in a different visual order count as duplicates).
 - **Areas subgroup** (📐, `subgroup: 'areas'`, School Math) shown under SubgroupHeader in Home:
   - `square` ⬜ — `{ a, answer }` — SVG square with HDim + VDim
   - `rectangle` ▭ — `{ w, h, answer }` — SVG rectangle with HDim + VDim
@@ -174,6 +195,7 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
 - **Verbal Reasoning** (`group: 'verbal'`):
   - `wordSplit` 🧩 — `{ w1, w2, validAnswers: [string], isNone: bool, _key }` — given two source words, find a 4-letter target formed by taking 1–3 letters from end of `w1` + remaining 3–1 from start of `w2`. 50% of problems are "no word" (user clicks **No word** button). Data in `wordSplitData.js`: 60 TARGETS (kid-known 4-letter words), ~400-word SOURCE_POOL (5+ letters, dedup, no targets); `buildPairsMap()` indexes pool by suffix/prefix length 1/2/3 at module load, producing `PAIRS_BY_TARGET` so generation is just a random pick. `canFormTargets(w1, w2)` returns ALL targets a pair can form (pair problems accept any equivalent target); `pickRandomNoPair()` samples until a pair forms zero targets. Custom Input: 4-letter text field (auto-uppercase, A-Z only) + **Check Word** + **No word** buttons; No word auto-submits the `NONE_VALUE` sentinel. `CorrectView` highlights the contributing letters in green and reveals the target in a bouncing pill (or "✓ No 4-letter word" for the no-word case).
   - `wordGap` 🔤 — `{ word, pos, answer, choices[5], _key }` — show part of a 6- or 7-letter word; pick the 3 letters that complete it from 5 MC options. Data in `wordGapData.js` (`WORDS`): 100 kid-known words, each with 3 `configs` — all three gap positions are used: prefix (`pos:0`), middle (`pos:2`), suffix (`pos + 3 === word.length`). Each config carries 6–8 `decoys` — wrong 3-letter strings hand-picked so NONE forms a valid word when inserted. Watch out for (a) suffix-sharing words like `___KET` for BASKET/BUCKET/JACKET — decoys must avoid other valid prefixes — and (b) middle-gap patterns like `CA___LE` that accept CANDLE/CASTLE/CATTLE/CANTLE, so decoys must avoid NDL/STL/TTL/NTL. `key` = `wg:WORD:pos` for dedup (different gap positions on the same word count as distinct). MC Input auto-submits. **View** gives no positional hint: it renders `before + after` concatenated (for BEAUTY middle gap → "BEY"; prefix → "UTY"; suffix → "BEA") with a generic "Which 3 letters complete the word?" prompt. The kid figures out whether to prepend, append, or insert. **CorrectView** renders `before + answer (emerald-600) + after (muted)` — revealing the gap's location only after a correct answer — and bounces the full word pill. Note: decoys were originally validated only for their config's specific insertion point, so for middle configs it is theoretically possible (though unlikely, given the random-looking 3-letter decoys) that a decoy could form a valid word at a different split — fix individual collisions in the data as they're reported.
+  - `letterMath` 🔠 — `{ letters: {A..E: 1..100}, expr, operandLetters, ops, answer }` — letters A–E each stand for a distinct number (1–100); solve a 2- or 3-operand equation (no parentheses, standard precedence) and click the letter whose value equals the result. `generate()` builds an equation via 2-operand templates (`a±b`, `a×b`, `a÷b`) or 3-operand templates (15 patterns covering all `+ − × ÷` combinations), then assigns operand values to random letters, the result to a separate "answer letter," and fills remaining slots with random distinct values. Multiplication operands are bounded to 1–10; division always yields whole numbers; final result clamped to 1–100. Operand values are forced pairwise distinct AND ≠ result, so exactly one letter equals the answer. Display uses `×` and `÷` symbols. Custom MC `Input` of 5 letter buttons (A–E), auto-submits on click. Dedup `key` = `lm:A=...,B=...,...:<expr>`.
 
 ## Fractions Input Detail
 - User picks format first: **Whole number**, **Fraction**, **Mixed number**
@@ -182,7 +204,7 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
 - Mixed: `whole + num/den === answerNum/answerDen`
 
 ## Pending / To Be Defined
-- Extra Math and Verbal Reasoning each have one module — more to come
+- More Extra Math and Verbal Reasoning modules to come
 - Profile list is fixed to the 3 seeded profiles (no UI to add/remove/rename yet)
 - No aggregate/cross-profile stats view (only per-profile heatmap)
 
