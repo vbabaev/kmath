@@ -213,7 +213,7 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
 - More Extra Math and Verbal Reasoning modules to come
 - Profile list is fixed to the 3 seeded profiles (no UI to add/remove/rename yet)
 - No aggregate/cross-profile stats view (only per-profile heatmap)
-- **Backend cutover in progress** — see `docs/backend-design.md`. Phase 0 (skeleton) has landed: `backend/` Express stub + `docker-compose.dev.yml` for Mongo. localStorage is still the source of truth until Phase 2 swaps `src/profiles.js` and `src/settings.js` over to API calls.
+- **Backend cutover in progress** — see `docs/backend-design.md`. Phase 0–1 landed: `backend/` (Express + Mongo) exposes `GET /api/profiles`, `GET /api/profiles/:id`, `PUT /api/profiles/:id` with append-only sessions and immutable-field package checks; `npm run seed` and `npm run import-backup` available; `docker-compose.dev.yml` runs Mongo. localStorage is still the source of truth until Phase 2 swaps `src/profiles.js` and `src/settings.js` over to API calls.
 
 ## Key Decisions
 - Problems generated all upfront; `key()` on each module prevents duplicates

@@ -1,14 +1,16 @@
-import "dotenv/config";
-import express from "express";
+import { config } from "./config.js";
+import { connectDb } from "./db.js";
+import { createApp } from "./app.js";
 
-const app = express();
-app.use(express.json({ limit: "1mb" }));
+async function main() {
+  await connectDb();
+  const app = createApp();
+  app.listen(config.port, () => {
+    console.log(`kmath-backend listening on :${config.port}`);
+  });
+}
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
-});
-
-const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => {
-  console.log(`kmath-backend listening on :${port}`);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
