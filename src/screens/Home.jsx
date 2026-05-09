@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
-import { getProfileColors, isTeacher, getAssignableStudents } from '../profiles'
+import { getProfileColors, isTeacher } from '../profiles'
 import ProfileButton from '../components/ProfileButton'
 import ModuleTag, { moduleTagsFromCounts } from '../components/ModuleTag'
 
@@ -161,7 +161,7 @@ function QueuedAssignmentCard({ assignment, position }) {
   )
 }
 
-export default function Home({ activeProfile, onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
+export default function Home({ activeProfile, assignableStudents = [], onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
   const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
@@ -177,10 +177,6 @@ export default function Home({ activeProfile, onStart, onAssign, onStartAssignme
   const teacher = isTeacher(activeProfile)
   const assignments = activeProfile.assignments ?? []
   const hasAssignments = !teacher && assignments.length > 0
-  const assignableStudents = useMemo(
-    () => (teacher ? getAssignableStudents(activeProfile.id) : []),
-    [teacher, activeProfile.id]
-  )
 
   function quickQuiz(mod) {
     onStart(generateProblems({ [mod.id]: mod.defaultCount }))

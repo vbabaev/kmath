@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   SHOP_PACKAGES,
   isTeacher,
-  getAllStudentPackages,
   getProfileColors,
 } from '../profiles'
 
@@ -116,10 +115,10 @@ function StudentShop({ profile, onBack, onBuy }) {
     [profile.packages]
   )
 
-  function confirm() {
+  async function confirm() {
     const type = pending
     setPending(null)
-    const result = onBuy(type)
+    const result = await onBuy(type)
     if (result?.ok) {
       setToast(`✓ ${SHOP_PACKAGES[type].label} bought!`)
       setTimeout(() => setToast(null), 2500)
@@ -219,25 +218,28 @@ function TeacherPackageRow({ pkg, studentColors, onToggle }) {
   )
 }
 
-function TeacherShop({ onBack, onToggle, reloadKey }) {
+function TeacherShop({ onBack, onToggle, studentPackages = [] }) {
   const [tab, setTab] = useState('active')
-  const data = useMemo(() => getAllStudentPackages(), [reloadKey])
-  const visible = data
-    .map(({ student, packages }) => ({
-      student,
-      packages: packages
-        .filter((p) => p.status === tab)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    }))
-    .filter(({ packages }) => packages.length > 0)
-
-  const totalActive = data.reduce(
-    (sum, { packages }) => sum + packages.filter((p) => p.status === 'active').length,
-    0
+  const visible = useMemo(
+    () =>
+      studentPackages
+        .map(({ student, packages }) => ({
+          student,
+          packages: packages
+            .filter((p) => p.status === tab)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        }))
+        .filter(({ packages }) => packages.length > 0),
+    [studentPackages, tab],
   )
-  const totalUsed = data.reduce(
+
+  const totalActive = studentPackages.reduce(
+    (sum, { packages }) => sum + packages.filter((p) => p.status === 'active').length,
+    0,
+  )
+  const totalUsed = studentPackages.reduce(
     (sum, { packages }) => sum + packages.filter((p) => p.status === 'used').length,
-    0
+    0,
   )
 
   return (
@@ -320,9 +322,9 @@ function TeacherShop({ onBack, onToggle, reloadKey }) {
   )
 }
 
-export default function Shop({ profile, onBack, onBuy, onToggleStatus, reloadKey }) {
+export default function Shop({ profile, studentPackages, onBack, onBuy, onToggleStatus }) {
   if (isTeacher(profile)) {
-    return <TeacherShop onBack={onBack} onToggle={onToggleStatus} reloadKey={reloadKey} />
+    return <TeacherShop onBack={onBack} onToggle={onToggleStatus} studentPackages={studentPackages} />
   }
   return <StudentShop profile={profile} onBack={onBack} onBuy={onBuy} />
 }

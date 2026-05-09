@@ -213,7 +213,7 @@ School Math holds the bulk of modules; Extra Math has Word Problems + `complicat
 - More Extra Math and Verbal Reasoning modules to come
 - Profile list is fixed to the 3 seeded profiles (no UI to add/remove/rename yet)
 - No aggregate/cross-profile stats view (only per-profile heatmap)
-- **Backend cutover in progress** — see `docs/backend-design.md`. Phase 0–1 landed: `backend/` (Express + Mongo) exposes `GET /api/profiles`, `GET /api/profiles/:id`, `PUT /api/profiles/:id` with append-only sessions and immutable-field package checks; `npm run seed` and `npm run import-backup` available; `docker-compose.dev.yml` runs Mongo. localStorage is still the source of truth until Phase 2 swaps `src/profiles.js` and `src/settings.js` over to API calls.
+- **Backend cutover in progress** — see `docs/backend-design.md`. Phase 0–2 landed: `backend/` (Express + Mongo) exposes `GET /api/profiles`, `GET /api/profiles/:id`, `PUT /api/profiles/:id` with append-only sessions and immutable-field package checks; `npm run seed` and `npm run import-backup` available; `docker-compose.dev.yml` runs Mongo. The frontend now talks to the API (`src/api.js`, `src/profiles.js` rewritten async, `src/settings.js` reduced to `kmath.profileId` only); App.jsx holds an `allProfiles` list as the source of truth, derives `activeProfile` via useMemo, and splices server responses back into the list after each mutation. Quiz auto-save is debounced 750 ms and abortable on unmount. Vite dev proxy forwards `/api/*` → `http://localhost:3000`. localStorage is no longer used for kmath state — only the active profile id (identity).
 
 ## Key Decisions
 - Problems generated all upfront; `key()` on each module prevents duplicates

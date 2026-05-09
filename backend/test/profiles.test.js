@@ -80,13 +80,14 @@ beforeEach(async () => {
 });
 
 describe("GET /api/profiles", () => {
-  it("returns the slim list with id (not _id)", async () => {
+  it("returns full profiles with id (not _id)", async () => {
     const res = await request(app).get("/api/profiles").expect(200);
     assert.equal(res.body.length, 1);
     assert.equal(res.body[0].id, "kira");
     assert.equal(res.body[0].name, "Kira");
     assert.equal(res.body[0].role, "student");
-    assert.ok(!("points" in res.body[0]));
+    assert.equal(res.body[0].points, 100);
+    assert.deepEqual(res.body[0].sessions, []);
     assert.ok(!("_id" in res.body[0]));
   });
 });

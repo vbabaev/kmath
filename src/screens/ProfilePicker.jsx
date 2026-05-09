@@ -1,7 +1,6 @@
-import { getAllProfiles, getProfileColors } from '../profiles'
+import { getProfileColors } from '../profiles'
 
-export default function ProfilePicker({ onSelect }) {
-  const profiles = getAllProfiles()
+export default function ProfilePicker({ profiles, onSelect }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="text-center mb-12">

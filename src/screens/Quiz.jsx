@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { saveActiveQuiz } from '../profiles'
 import { toProblemRef } from '../modules'
 import ProfileButton from '../components/ProfileButton'
+
+const AUTOSAVE_DELAY_MS = 750
 
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
@@ -11,7 +12,7 @@ function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, onFinish, onCancel, onProfileClick }) {
+export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, onSnapshot, onFinish, onCancel, onProfileClick }) {
   const startQueue = initialState?.queue ?? problems
   const startIndex = initialState?.index ?? 0
 
@@ -38,10 +39,12 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     inputRef.current?.focus()
   }, [index])
 
-  // Auto-save for F5 / tab-close recovery. Fires whenever persisted state
-  // changes (once per submit, effectively).
+  // Auto-save for F5 / tab-close recovery. Debounced + abortable so that
+  // an in-flight save is cancelled on unmount, avoiding races with cancel
+  // / finish writes that clear activeQuiz.
   useEffect(() => {
-    saveActiveQuiz({
+    if (!onSnapshot) return
+    const snapshot = {
       problems: problems.map(toProblemRef),
       queue: queue.map(toProblemRef),
       index,
@@ -55,8 +58,14 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
         timeMs: c.timeMs,
       })),
       isAssignment,
-    })
-  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment])
+    }
+    const ctl = new AbortController()
+    const t = setTimeout(() => onSnapshot(snapshot, ctl.signal), AUTOSAVE_DELAY_MS)
+    return () => {
+      clearTimeout(t)
+      ctl.abort()
+    }
+  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment, onSnapshot])
 
   function appendToQueue(item) {
     const next = [...queueRef.current, item]

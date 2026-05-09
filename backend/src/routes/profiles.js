@@ -11,9 +11,7 @@ function toClient(doc) {
 }
 
 router.get("/", async (_req, res) => {
-  const docs = await profilesCollection()
-    .find({}, { projection: { _id: 1, name: 1, emoji: 1, color: 1, role: 1 } })
-    .toArray();
+  const docs = await profilesCollection().find({}).toArray();
   res.json(docs.map(toClient));
 });
 

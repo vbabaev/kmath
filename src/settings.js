@@ -1,26 +1,25 @@
-const STORAGE_KEY = 'kmath.settings'
+// Identity-only client storage. The active profile id is what tells the
+// app which profile to fetch from the backend on load. Everything else
+// (state, points, sessions, etc.) lives in MongoDB.
+const PROFILE_ID_KEY = 'kmath.profileId'
 
-const DEFAULTS = {
-  activeProfile: null,
-}
-
-export function getSettings() {
+export function getActiveProfileId() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...DEFAULTS }
-    const parsed = JSON.parse(raw)
-    return { ...DEFAULTS, ...parsed }
+    return localStorage.getItem(PROFILE_ID_KEY)
   } catch {
-    return { ...DEFAULTS }
+    return null
   }
 }
 
-export function updateSettings(partial) {
-  const next = { ...getSettings(), ...partial }
+export function setActiveProfileId(id) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    if (id) localStorage.setItem(PROFILE_ID_KEY, id)
+    else localStorage.removeItem(PROFILE_ID_KEY)
   } catch {
-    // ignore write errors (private mode, quota, etc.)
+    // ignore
   }
-  return next
+}
+
+export function clearActiveProfileId() {
+  setActiveProfileId(null)
 }
