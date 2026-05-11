@@ -1,6 +1,6 @@
 # KMath Backend — Design & Execution Plan
 
-> Replace localStorage with a MongoDB-backed Node.js API. Three-container deployment (frontend, backend, db) behind Caddy at `kmath.vbabaev.uk`. Google OAuth gated by a local allowlist arrives in a later phase.
+> Replace localStorage with a MongoDB-backed Node.js API. Three-container deployment (frontend, backend, db) behind Caddy at `klearn.vbabaev.uk`. Google OAuth gated by a local allowlist arrives in a later phase.
 
 ## 1. Goals
 
@@ -19,7 +19,7 @@
 
 ```
                  ┌──────────────────────────────────────────┐
-   browser  ───► │  Caddy container (kmath.vbabaev.uk)      │
+   browser  ───► │  Caddy container (klearn.vbabaev.uk)      │
    HTTPS         │  • serves /            → ./dist (static)│
                  │  • proxies /api/*      → backend:3000   │
                  │  • Let's Encrypt auto-renew              │
@@ -222,7 +222,7 @@ CMD ["node", "src/index.js"]
 ### `Caddyfile` (production)
 
 ```
-kmath.vbabaev.uk {
+klearn.vbabaev.uk {
   encode gzip
   root * /srv/dist
   handle /api/* {
@@ -339,7 +339,7 @@ Phased, each phase shippable. Roughly 5 working sessions.
 - Write `backend/Dockerfile`.
 - Write `Caddyfile`.
 - Write top-level `docker-compose.yml` (prod).
-- On `kmath.vbabaev.uk`: install Docker + Compose, clone repo, copy `.env`, run `npm run build` for the frontend, `docker compose up -d`, run `import-backup.js`.
+- On `klearn.vbabaev.uk`: install Docker + Compose, clone repo, copy `.env`, run `npm run build` for the frontend, `docker compose up -d`, run `import-backup.js`.
 - Verify the live URL serves the app and `/api/health` returns 200.
 - **Decide on interim auth gate** before exposing publicly (see Open Questions).
 

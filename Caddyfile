@@ -1,4 +1,4 @@
-kmath.vbabaev.uk {
+klearn.vbabaev.uk {
 	encode gzip
 	root * /srv/dist
 
