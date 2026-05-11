@@ -1,7 +1,7 @@
 import Heatmap from '../components/Heatmap'
 import { getProfileColors } from '../profiles'
 
-export default function Profile({ profile, onHome, onSwitch, onShop }) {
+export default function Profile({ profile, canSwitch = false, onHome, onSwitch, onShop, onLogout }) {
   const c = getProfileColors(profile.color)
   const sessions = profile.sessions ?? []
   const recent = [...sessions].reverse().slice(0, 5)
@@ -18,9 +18,16 @@ export default function Profile({ profile, onHome, onSwitch, onShop }) {
             <button onClick={onShop} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
               🛍️ Shop
             </button>
-            <button onClick={onSwitch} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
-              Switch profile
-            </button>
+            {canSwitch && (
+              <button onClick={onSwitch} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
+                Switch profile
+              </button>
+            )}
+            {onLogout && (
+              <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
+                Logout
+              </button>
+            )}
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import Results from './screens/Results'
 import ProfilePicker from './screens/ProfilePicker'
 import Profile from './screens/Profile'
 import Shop from './screens/Shop'
+import Login from './screens/Login'
 import {
   getAllProfiles,
   saveProfile,
@@ -15,6 +16,7 @@ import {
   logSession,
 } from './profiles'
 import { getActiveProfileId, setActiveProfileId, clearActiveProfileId } from './settings'
+import { getAuthMe, logout as apiLogout } from './auth'
 import {
   generateProblems,
   countsFromProblems,
@@ -48,6 +50,7 @@ function hydrateQuizState(saved) {
 
 export default function App() {
   const [screen, setScreen] = useState(null)
+  const [authUser, setAuthUser] = useState(null)
   const [allProfiles, setAllProfiles] = useState([])
   const [activeProfileId, setActiveIdState] = useState(() => getActiveProfileId())
   const [problems, setProblems] = useState([])
@@ -60,8 +63,6 @@ export default function App() {
     [allProfiles, activeProfileId],
   )
 
-  // Quiz auto-save reads the latest active profile via this ref so the
-  // save callback can stay stable across re-renders.
   const activeProfileRef = useRef(activeProfile)
   useEffect(() => {
     activeProfileRef.current = activeProfile
@@ -83,11 +84,6 @@ export default function App() {
     setActiveIdState(id)
   }
 
-  function clearChosenId() {
-    clearActiveProfileId()
-    setActiveIdState(null)
-  }
-
   const routeForProfile = useCallback((profile) => {
     const hydrated = hydrateQuizState(profile?.activeQuiz)
     if (hydrated) {
@@ -105,29 +101,37 @@ export default function App() {
     }
   }, [])
 
-  // Initial load — fetch profiles, route based on stored profile id.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
+        const me = await getAuthMe()
+        if (cancelled) return
+        if (!me) {
+          setScreen('login')
+          return
+        }
+        setAuthUser(me)
         const list = await getAllProfiles()
         if (cancelled) return
         setAllProfiles(list)
-        const id = getActiveProfileId()
-        if (!id) {
-          setScreen('profilePicker')
-          return
-        }
+
+        // Pick the active profile: teacher may have a saved choice; student
+        // is always pinned to their primary.
+        let id = getActiveProfileId()
+        if (me.role !== 'teacher') id = me.profileId
+        if (!id || !list.find((p) => p.id === id)) id = me.profileId
+        chooseId(id)
+
         const profile = list.find((p) => p.id === id)
         if (!profile) {
-          clearChosenId()
           setScreen('profilePicker')
           return
         }
         routeForProfile(profile)
       } catch (err) {
-        console.error('Failed to load profiles', err)
-        if (!cancelled) setScreen('profilePicker')
+        console.error('Bootstrap failed', err)
+        if (!cancelled) setScreen('login')
       }
     })()
     return () => {
@@ -175,8 +179,6 @@ export default function App() {
   }
 
   async function playAgain() {
-    // If new assignments arrived during the quiz, send the kid back to Home
-    // where the assignment card is waiting — Play Again can't bypass the queue.
     const list = await refresh()
     const profile = list.find((p) => p.id === activeProfileId)
     if ((profile?.assignments ?? []).length > 0) {
@@ -192,7 +194,6 @@ export default function App() {
     if (!next) return
     const generated = generateProblems(next.counts)
     try {
-      // Pop the head + clear any stale activeQuiz in a single PUT.
       const updated = await saveProfile({
         ...activeProfile,
         assignments: (activeProfile.assignments ?? []).slice(1),
@@ -261,14 +262,12 @@ export default function App() {
   }
 
   async function goHome() {
-    // Refresh first so we see any quiz state written by auto-save and any
-    // assignments queued for a student during a profile detour.
     let profile = activeProfile
     try {
       const list = await refresh()
       profile = list.find((p) => p.id === activeProfileId) ?? profile
     } catch {
-      // fall through with stale profile
+      // fall through
     }
     routeForProfile(profile)
   }
@@ -305,8 +304,16 @@ export default function App() {
     }
   }
 
-  // Quiz auto-save: stable callback that reads the latest profile via ref so
-  // it doesn't change identity on every render.
+  async function handleLogout() {
+    try {
+      await apiLogout()
+    } catch (err) {
+      console.error('logout failed', err)
+    }
+    clearActiveProfileId()
+    window.location.href = '/'
+  }
+
   const onQuizSnapshot = useCallback(async (snapshot, signal) => {
     const current = activeProfileRef.current
     if (!current) return
@@ -317,6 +324,8 @@ export default function App() {
       if (err?.name !== 'AbortError') console.error('quiz auto-save failed', err)
     }
   }, [updateProfileInList])
+
+  const isTeacherUser = authUser?.role === 'teacher'
 
   const assignableStudents = useMemo(() => {
     if (!activeProfile || activeProfile.role !== 'teacher') return []
@@ -334,8 +343,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+      {screen === 'login' && (
+        <Login onLoginSuccess={() => { window.location.href = '/' }} />
+      )}
       {screen === 'profilePicker' && (
-        <ProfilePicker profiles={allProfiles} onSelect={selectProfile} />
+        <ProfilePicker profiles={allProfiles} onSelect={selectProfile} onLogout={handleLogout} />
       )}
       {screen === 'home' && activeProfile && (
         <Home
@@ -371,9 +383,11 @@ export default function App() {
       {screen === 'profile' && activeProfile && (
         <Profile
           profile={activeProfile}
+          canSwitch={isTeacherUser}
           onHome={goHome}
           onSwitch={goPicker}
           onShop={goShop}
+          onLogout={handleLogout}
         />
       )}
       {screen === 'shop' && activeProfile && (

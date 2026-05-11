@@ -2,19 +2,22 @@ import express from "express";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
-import { profileIdHeader } from "./auth.js";
+import { configureAuth } from "./auth.js";
 import profilesRoutes from "./routes/profiles.js";
 import healthRoutes from "./routes/health.js";
+import authRoutes from "./routes/auth.js";
 
-export function createApp({ logger = true } = {}) {
+export function createApp({ logger = true, auth = "session" } = {}) {
   const app = express();
   app.use(helmet());
   if (logger) app.use(pinoHttp());
   app.use(express.json({ limit: "1mb" }));
   app.use(rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: true, legacyHeaders: false }));
-  app.use(profileIdHeader);
+
+  configureAuth(app, { mode: auth });
 
   app.use("/api/health", healthRoutes);
+  app.use("/api/auth", authRoutes);
   app.use("/api/profiles", profilesRoutes);
 
   app.use((err, _req, res, _next) => {

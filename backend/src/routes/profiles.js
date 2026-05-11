@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { profilesCollection } from "../db.js";
 import { ProfileBodySchema, validateAppendOnly, validatePackages } from "../schema.js";
+import { requireAuth, requireProfileAccess } from "../auth.js";
 
 const router = Router();
 
@@ -10,18 +11,21 @@ function toClient(doc) {
   return { id: _id, ...rest };
 }
 
-router.get("/", async (_req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   const docs = await profilesCollection().find({}).toArray();
-  res.json(docs.map(toClient));
+  const visible = req.user.role === "teacher"
+    ? docs
+    : docs.filter((d) => d._id === req.user.profileId);
+  res.json(visible.map(toClient));
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireProfileAccess, async (req, res) => {
   const doc = await profilesCollection().findOne({ _id: req.params.id });
   if (!doc) return res.status(404).json({ error: "not found" });
   res.json(toClient(doc));
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireProfileAccess, async (req, res) => {
   const id = req.params.id;
   const existing = await profilesCollection().findOne({ _id: id });
   if (!existing) return res.status(404).json({ error: "not found" });
