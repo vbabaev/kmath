@@ -12,10 +12,10 @@ services:
     build: ./backend
     container_name: kmath-backend
     restart: unless-stopped
-    environment:
-      MONGO_URL: mongodb://mongo:27017/kmath
-      NODE_ENV: production
-      PORT: "3000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/auth-allowlist.json:/app/auth-allowlist.json:ro
     depends_on:
       - mongo
     networks:
