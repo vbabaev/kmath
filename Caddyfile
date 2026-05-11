@@ -1,0 +1,13 @@
+kmath.vbabaev.uk {
+	encode gzip
+	root * /srv/dist
+
+	handle /api/* {
+		reverse_proxy backend:3000
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

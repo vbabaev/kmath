@@ -364,10 +364,7 @@ Phased, each phase shippable. Roughly 5 working sessions.
 
 ## 11. Open Questions
 
-1. **Interim auth gate (Phase 3 → Phase 5):** until Google login lands, how should we keep the public URL from being open to anyone who guesses a profile id?
-   - Caddy `basic_auth` directive (one shared password)?
-   - IP allowlist (home + your laptop's static IP)?
-   - Don't expose publicly until Phase 5 (run the prod stack on the home network only)?
+1. ~~**Interim auth gate (Phase 3 → Phase 5)**~~ — **Decided:** no gating in the interim. The data isn't sensitive and a guessed profile id at most reveals quiz history. Phase 5 (Google OAuth + allowlist) adds real auth.
 2. **Where does `auth-allowlist.json` live in production?** Bind-mounted from a path on the host that's outside the repo, or a docker secret?
 3. **Backups: keep on the host, or push to S3 / similar?**
 4. **Test profile after auth:** dev-login env flag, or a hardcoded fallback Google account, or just delete the `test` profile in production?
