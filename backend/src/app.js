@@ -9,6 +9,9 @@ import authRoutes from "./routes/auth.js";
 
 export function createApp({ logger = true, auth = "session" } = {}) {
   const app = express();
+  // Caddy fronts us in production; trust the first proxy hop so
+  // express-rate-limit and req.ip see the real client address.
+  app.set("trust proxy", 1);
   app.use(helmet());
   if (logger) app.use(pinoHttp());
   app.use(express.json({ limit: "1mb" }));
