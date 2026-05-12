@@ -8,12 +8,15 @@ import { createApp } from "../src/app.js";
 let mongo;
 let app;
 
+const GROUP_ID = "g-dad";
+
 const studentSeed = (overrides = {}) => ({
   _id: "kira",
   name: "Kira",
   emoji: "👧",
   color: "pink",
-  role: "student",
+  role: "child",
+  groupId: GROUP_ID,
   settings: { group: "school" },
   points: 100,
   sessions: [],
@@ -27,9 +30,18 @@ const studentSeed = (overrides = {}) => ({
   ...overrides,
 });
 
-const teacherSeed = () => studentSeed({ _id: "dad", name: "Dad", emoji: "👨", color: "indigo", role: "teacher" });
+const teacherSeed = () => studentSeed({ _id: "dad", name: "Dad", emoji: "👨", color: "indigo", role: "owner" });
 
-const otherStudentSeed = () => studentSeed({ _id: "test", name: "Test", emoji: "🧪", color: "emerald", role: "student" });
+const otherStudentSeed = () => studentSeed({ _id: "test", name: "Test", emoji: "🧪", color: "emerald", role: "child" });
+
+const groupSeed = () => ({
+  _id: GROUP_ID,
+  name: "Dad's family",
+  ownerId: "dad",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  schemaVersion: 1,
+});
 
 const session = (overrides = {}) => ({
   date: "2026-01-01",
@@ -84,7 +96,10 @@ after(async () => {
 });
 
 beforeEach(async () => {
+  const { groupsCollection } = await import("../src/db.js");
   await profilesCollection().deleteMany({});
+  await groupsCollection().deleteMany({});
+  await groupsCollection().insertOne(groupSeed());
   await profilesCollection().insertMany([studentSeed(), teacherSeed(), otherStudentSeed()]);
 });
 
@@ -94,31 +109,30 @@ describe("auth", () => {
     await request(app).get("/api/profiles/kira").expect(401);
   });
 
-  it("rejects student reading another profile with 403", async () => {
+  it("rejects child reading another profile with 403", async () => {
     await asKira(request(app).get("/api/profiles/dad")).expect(403);
     await asKira(request(app).get("/api/profiles/test")).expect(403);
   });
 
-  it("allows teacher to read any profile", async () => {
+  it("allows owner to read any child in same group", async () => {
     await asDad(request(app).get("/api/profiles/kira")).expect(200);
     await asDad(request(app).get("/api/profiles/test")).expect(200);
     await asDad(request(app).get("/api/profiles/dad")).expect(200);
   });
 
-  it("rejects student writing another profile with 403", async () => {
+  it("rejects child writing another profile with 403", async () => {
     await asKira(request(app).put("/api/profiles/dad").send(baseBody())).expect(403);
   });
 });
 
 describe("GET /api/profiles", () => {
-  it("returns all profiles for a teacher", async () => {
+  it("returns self + children for an owner (NOT other adults)", async () => {
     const res = await asDad(request(app).get("/api/profiles")).expect(200);
-    assert.equal(res.body.length, 3);
     const ids = res.body.map((p) => p.id).sort();
     assert.deepEqual(ids, ["dad", "kira", "test"]);
   });
 
-  it("returns only own profile for a student", async () => {
+  it("returns only own profile for a child", async () => {
     const res = await asKira(request(app).get("/api/profiles")).expect(200);
     assert.equal(res.body.length, 1);
     assert.equal(res.body[0].id, "kira");
@@ -142,20 +156,28 @@ describe("POST /api/profiles", () => {
     name: "New Kid",
     emoji: "🦊",
     color: "violet",
-    role: "student",
+    role: "child",
     ...overrides,
   });
 
-  it("creates a new profile when called by a teacher", async () => {
+  it("creates a new child profile when called by an owner", async () => {
     const res = await asDad(request(app).post("/api/profiles").send(create())).expect(201);
     assert.equal(res.body.name, "New Kid");
-    assert.equal(res.body.role, "student");
+    assert.equal(res.body.role, "child");
     assert.equal(res.body.id, "new-kid");
     assert.equal(res.body.googleEmail, null);
+    assert.equal(res.body.groupId, GROUP_ID);
   });
 
-  it("rejects creation by a student (403)", async () => {
+  it("rejects creation by a child (403)", async () => {
     await asKira(request(app).post("/api/profiles").send(create())).expect(403);
+  });
+
+  it("owner can create a parent", async () => {
+    const res = await asDad(
+      request(app).post("/api/profiles").send(create({ name: "Mom", role: "parent" })),
+    ).expect(201);
+    assert.equal(res.body.role, "parent");
   });
 
   it("rejects unauthenticated creation (401)", async () => {
@@ -190,8 +212,8 @@ describe("PUT /api/profiles/:id", () => {
   });
 
   it("ignores role from body (immutable)", async () => {
-    const res = await asKira(request(app).put("/api/profiles/kira").send({ ...baseBody(), role: "teacher" })).expect(200);
-    assert.equal(res.body.role, "student");
+    const res = await asKira(request(app).put("/api/profiles/kira").send({ ...baseBody(), role: "owner" })).expect(200);
+    assert.equal(res.body.role, "child");
   });
 
   it("appends a session", async () => {
@@ -258,6 +280,134 @@ describe("PUT /api/profiles/:id", () => {
   it("teacher cannot set a googleEmail already used by another profile (409)", async () => {
     await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "shared@example.com" })).expect(200);
     await asDad(request(app).put("/api/profiles/test").send({ ...baseBody(), name: "Test", googleEmail: "shared@example.com" })).expect(409);
+  });
+});
+
+describe("household visibility", () => {
+  beforeEach(async () => {
+    // Add a co-parent (Mom) in the same group as Dad.
+    await profilesCollection().insertOne(
+      studentSeed({ _id: "mom", name: "Mom", emoji: "👩", color: "rose", role: "parent" }),
+    );
+  });
+
+  it("owner cannot open a co-parent's profile (403)", async () => {
+    await asDad(request(app).get("/api/profiles/mom")).expect(403);
+  });
+
+  it("parent cannot open the owner's profile (403)", async () => {
+    const asMom = (req) => req.set("X-Profile-Id", "mom");
+    await asMom(request(app).get("/api/profiles/dad")).expect(403);
+  });
+
+  it("parent CAN open a child's profile", async () => {
+    const asMom = (req) => req.set("X-Profile-Id", "mom");
+    await asMom(request(app).get("/api/profiles/kira")).expect(200);
+  });
+
+  it("GET /api/profiles omits other adults from an adult's list", async () => {
+    const res = await asDad(request(app).get("/api/profiles")).expect(200);
+    const ids = res.body.map((p) => p.id).sort();
+    assert.deepEqual(ids, ["dad", "kira", "test"]);
+  });
+
+  it("rejects a child creating a parent (403)", async () => {
+    await asKira(
+      request(app).post("/api/profiles").send({
+        name: "Boss",
+        emoji: "👤",
+        color: "indigo",
+        role: "parent",
+      }),
+    ).expect(403);
+  });
+
+  it("rejects a parent creating another parent (403)", async () => {
+    const asMom = (req) => req.set("X-Profile-Id", "mom");
+    await asMom(
+      request(app).post("/api/profiles").send({
+        name: "Uncle",
+        emoji: "🧔",
+        color: "amber",
+        role: "parent",
+      }),
+    ).expect(403);
+  });
+
+  it("parent can create a child", async () => {
+    const asMom = (req) => req.set("X-Profile-Id", "mom");
+    const res = await asMom(
+      request(app).post("/api/profiles").send({
+        name: "Junior",
+        emoji: "🧒",
+        color: "amber",
+        role: "child",
+      }),
+    ).expect(201);
+    assert.equal(res.body.role, "child");
+    assert.equal(res.body.groupId, GROUP_ID);
+  });
+
+  it("cross-group access is 403 even between adults", async () => {
+    // Set up a second household.
+    const { groupsCollection } = await import("../src/db.js");
+    await groupsCollection().insertOne({
+      _id: "g-other",
+      name: "Other family",
+      ownerId: "other",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      schemaVersion: 1,
+    });
+    await profilesCollection().insertOne(
+      studentSeed({
+        _id: "other",
+        name: "Other",
+        emoji: "🙂",
+        color: "amber",
+        role: "owner",
+        groupId: "g-other",
+      }),
+    );
+    await asDad(request(app).get("/api/profiles/other")).expect(403);
+    // And the cross-group child is invisible too.
+    await profilesCollection().insertOne(
+      studentSeed({
+        _id: "their-kid",
+        name: "Their Kid",
+        emoji: "🧒",
+        color: "amber",
+        role: "child",
+        groupId: "g-other",
+      }),
+    );
+    await asDad(request(app).get("/api/profiles/their-kid")).expect(403);
+  });
+});
+
+describe("GET /api/groups/me", () => {
+  beforeEach(async () => {
+    await profilesCollection().insertOne(
+      studentSeed({ _id: "mom", name: "Mom", emoji: "👩", color: "rose", role: "parent" }),
+    );
+  });
+
+  it("returns the group with all member summaries (incl. other adults)", async () => {
+    const res = await asDad(request(app).get("/api/groups/me")).expect(200);
+    assert.equal(res.body.id, GROUP_ID);
+    assert.equal(res.body.ownerId, "dad");
+    const roles = res.body.members.map((m) => m.role).sort();
+    assert.deepEqual(roles, ["child", "child", "owner", "parent"]);
+  });
+
+  it("a child can see member summaries too", async () => {
+    const res = await asKira(request(app).get("/api/groups/me")).expect(200);
+    assert.equal(res.body.id, GROUP_ID);
+    assert.ok(res.body.members.length >= 1);
+  });
+
+  it("401 when unauthenticated", async () => {
+    await request(app).get("/api/groups/me").expect(401);
   });
 });
 

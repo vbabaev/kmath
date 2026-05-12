@@ -3,8 +3,18 @@ import MongoStore from "connect-mongo";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { config, hasOAuthCredentials } from "./config.js";
-import { profilesCollection } from "./db.js";
-import { makeProfile, generateProfileId } from "./profile-factory.js";
+import { profilesCollection, groupsCollection } from "./db.js";
+import {
+  makeProfile,
+  makeGroup,
+  generateProfileId,
+  generateGroupId,
+} from "./profile-factory.js";
+
+export const ADULT_ROLES = new Set(["owner", "parent"]);
+function isAdult(role) {
+  return ADULT_ROLES.has(role);
+}
 
 const SESSION_COOKIE = "kmath.sid";
 
@@ -15,7 +25,14 @@ export function configureAuth(app, { mode = "session" } = {}) {
       if (!id) return next();
       try {
         const doc = await profilesCollection().findOne({ _id: id });
-        if (doc) req.user = { email: null, profileId: doc._id, role: doc.role };
+        if (doc) {
+          req.user = {
+            email: null,
+            profileId: doc._id,
+            role: doc.role,
+            groupId: doc.groupId,
+          };
+        }
       } catch {
         // ignore — request continues unauth'd
       }
@@ -58,18 +75,24 @@ export function configureAuth(app, { mode = "session" } = {}) {
 
             if (!doc) {
               // Bootstrap: the very first login by the configured bootstrap
-              // address creates a teacher profile so the app is usable on a
-              // fresh database.
+              // address creates an OWNER profile and a default group, so
+              // the app is usable on a fresh database.
               const bootstrap = config.bootstrapTeacherEmail?.toLowerCase();
               const total = await col.countDocuments();
               if (bootstrap && email === bootstrap && total === 0) {
-                const id = await generateProfileId(profile.displayName ?? "Teacher");
+                const displayName = profile.displayName ?? "Owner";
+                const profileId = await generateProfileId(displayName);
+                const groupId = await generateGroupId(profileId);
+                await groupsCollection().insertOne(
+                  makeGroup({ id: groupId, name: `${displayName}'s family`, ownerId: profileId }),
+                );
                 doc = makeProfile({
-                  id,
-                  name: profile.displayName ?? "Teacher",
+                  id: profileId,
+                  name: displayName,
                   emoji: "👨",
                   color: "indigo",
-                  role: "teacher",
+                  role: "owner",
+                  groupId,
                   googleEmail: email,
                 });
                 await col.insertOne(doc);
@@ -80,7 +103,12 @@ export function configureAuth(app, { mode = "session" } = {}) {
               return done(null, false, { message: "email not associated with any profile" });
             }
 
-            return done(null, { email, profileId: doc._id, role: doc.role });
+            return done(null, {
+              email,
+              profileId: doc._id,
+              role: doc.role,
+              groupId: doc.groupId,
+            });
           } catch (err) {
             return done(err);
           }
@@ -103,15 +131,37 @@ export function requireAuth(req, res, next) {
   next();
 }
 
-export function requireProfileAccess(req, res, next) {
+// Household visibility rule:
+//   - Self is always allowed.
+//   - Same-group adult (owner/parent) accessing a child is allowed.
+//   - Everything else is 403 (incl. adult-to-adult and cross-group).
+// Loads the target profile and attaches it as `req.targetProfile` so
+// the downstream handler doesn't fetch it twice.
+export async function requireProfileAccess(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "not authenticated" });
-  if (req.user.role === "teacher") return next();
-  if (req.params.id === req.user.profileId) return next();
-  return res.status(403).json({ error: "forbidden" });
+  const target = await profilesCollection().findOne({ _id: req.params.id });
+  if (!target) return res.status(404).json({ error: "not found" });
+  if (target._id === req.user.profileId) {
+    req.targetProfile = target;
+    return next();
+  }
+  if (target.groupId !== req.user.groupId) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  if (!isAdult(req.user.role)) return res.status(403).json({ error: "forbidden" });
+  if (target.role !== "child") return res.status(403).json({ error: "forbidden" });
+  req.targetProfile = target;
+  next();
 }
 
-export function requireTeacher(req, res, next) {
+export function requireAdult(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "not authenticated" });
-  if (req.user.role !== "teacher") return res.status(403).json({ error: "teacher only" });
+  if (!isAdult(req.user.role)) return res.status(403).json({ error: "adult only" });
+  next();
+}
+
+export function requireOwner(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: "not authenticated" });
+  if (req.user.role !== "owner") return res.status(403).json({ error: "owner only" });
   next();
 }

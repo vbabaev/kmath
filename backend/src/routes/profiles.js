@@ -8,7 +8,7 @@ import {
   validatePackages,
   validateActiveQuizTransition,
 } from "../schema.js";
-import { requireAuth, requireProfileAccess, requireTeacher } from "../auth.js";
+import { requireAuth, requireProfileAccess, requireAdult, ADULT_ROLES } from "../auth.js";
 import { makeProfile, generateProfileId } from "../profile-factory.js";
 
 const router = Router();
@@ -29,17 +29,27 @@ async function emailTakenByOther(email, exceptId) {
 }
 
 router.get("/", requireAuth, async (req, res) => {
-  const docs = await profilesCollection().find({}).toArray();
-  const visible = req.user.role === "teacher"
-    ? docs
+  // Group-scoped. Adults see self + all children in their group. Children
+  // see only themselves. Other adults in the group are intentionally not
+  // returned here — their detail page is off-limits. (Adults can list
+  // them via GET /api/groups/me for the management UI.)
+  const docs = await profilesCollection().find({ groupId: req.user.groupId }).toArray();
+  const isUserAdult = ADULT_ROLES.has(req.user.role);
+  const visible = isUserAdult
+    ? docs.filter((d) => d._id === req.user.profileId || d.role === "child")
     : docs.filter((d) => d._id === req.user.profileId);
   res.json(visible.map(toClient));
 });
 
-router.post("/", requireTeacher, async (req, res) => {
+router.post("/", requireAdult, async (req, res) => {
   const parsed = CreateProfileSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "invalid body", details: parsed.error.issues });
+  }
+  const newRole = parsed.data.role;
+  // Only the owner can promote another adult; anyone admin-or-up can add a child.
+  if (newRole === "parent" && req.user.role !== "owner") {
+    return res.status(403).json({ error: "only owner can invite parents" });
   }
   const googleEmail = parsed.data.googleEmail
     ? parsed.data.googleEmail.toLowerCase()
@@ -53,7 +63,8 @@ router.post("/", requireTeacher, async (req, res) => {
     name: parsed.data.name,
     emoji: parsed.data.emoji,
     color: parsed.data.color,
-    role: parsed.data.role,
+    role: newRole,
+    groupId: req.user.groupId,
     googleEmail,
   });
   try {
@@ -68,15 +79,13 @@ router.post("/", requireTeacher, async (req, res) => {
 });
 
 router.get("/:id", requireProfileAccess, async (req, res) => {
-  const doc = await profilesCollection().findOne({ _id: req.params.id });
-  if (!doc) return res.status(404).json({ error: "not found" });
-  res.json(toClient(doc));
+  // requireProfileAccess already loaded the target as req.targetProfile.
+  res.json(toClient(req.targetProfile));
 });
 
 router.put("/:id", requireProfileAccess, async (req, res) => {
   const id = req.params.id;
-  const existing = await profilesCollection().findOne({ _id: id });
-  if (!existing) return res.status(404).json({ error: "not found" });
+  const existing = req.targetProfile;
 
   const parsed = ProfileBodySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -100,9 +109,14 @@ router.put("/:id", requireProfileAccess, async (req, res) => {
     });
   }
 
-  // googleEmail: teacher may change it; for anyone else it's locked.
+  // googleEmail: adults can change their own email and any child they
+  // manage. requireProfileAccess already gates cross-adult attempts, so
+  // by the time we're here it's either self or an adult-on-child write.
+  // Children cannot change emails (even their own) — that's an admin
+  // operation.
   let nextEmail = existing.googleEmail ?? null;
-  if (req.user.role === "teacher" && "googleEmail" in (req.body ?? {})) {
+  const canChangeEmail = ADULT_ROLES.has(req.user.role);
+  if (canChangeEmail && "googleEmail" in (req.body ?? {})) {
     const proposed = parsed.data.googleEmail
       ? parsed.data.googleEmail.toLowerCase()
       : null;
@@ -119,6 +133,7 @@ router.put("/:id", requireProfileAccess, async (req, res) => {
     emoji: parsed.data.emoji,
     color: parsed.data.color,
     role: existing.role,
+    groupId: existing.groupId,
     settings: parsed.data.settings,
     points: Math.max(0, parsed.data.points),
     sessions: parsed.data.sessions,

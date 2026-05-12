@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { getProfileColors, COLOR_CHOICES, EMOJI_CHOICES } from '../profiles'
 
-function CreateProfileModal({ onCreate, onCancel }) {
+// canInviteParent gates whether the "parent" role option appears.
+// Only the household owner can promote another adult.
+function CreateProfileModal({ onCreate, onCancel, canInviteParent = false }) {
   const [name, setName] = useState('')
-  const [role, setRole] = useState('student')
+  const [role, setRole] = useState('child')
   const [emoji, setEmoji] = useState(EMOJI_CHOICES[0])
   const [color, setColor] = useState('indigo')
   const [email, setEmail] = useState('')
@@ -47,7 +49,7 @@ function CreateProfileModal({ onCreate, onCancel }) {
 
         <label className="block text-sm font-semibold text-gray-600 mb-1">Role</label>
         <div className="flex gap-2 mb-4">
-          {['student', 'teacher'].map((r) => (
+          {(canInviteParent ? ['child', 'parent'] : ['child']).map((r) => (
             <button
               key={r}
               onClick={() => setRole(r)}
@@ -57,7 +59,7 @@ function CreateProfileModal({ onCreate, onCancel }) {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {r === 'student' ? 'Student' : 'Teacher'}
+              {r === 'child' ? 'Child' : 'Parent'}
             </button>
           ))}
         </div>
@@ -133,7 +135,7 @@ function CreateProfileModal({ onCreate, onCancel }) {
   )
 }
 
-export default function ProfilePicker({ profiles, onSelect, onLogout, onCreate, canCreate = false }) {
+export default function ProfilePicker({ profiles, onSelect, onLogout, onCreate, canCreate = false, canInviteParent = false }) {
   const [creating, setCreating] = useState(false)
 
   return (
@@ -153,7 +155,7 @@ export default function ProfilePicker({ profiles, onSelect, onLogout, onCreate, 
         </h1>
         <p className="text-gray-400">
           {profiles.length === 0
-            ? canCreate ? 'Create your first profile to get started' : 'No profiles yet — ask your teacher to add you'
+            ? canCreate ? 'Create your first profile to get started' : 'No profiles yet — ask a parent to add you'
             : 'Pick your profile'}
         </p>
       </div>
@@ -190,6 +192,7 @@ export default function ProfilePicker({ profiles, onSelect, onLogout, onCreate, 
 
       {creating && (
         <CreateProfileModal
+          canInviteParent={canInviteParent}
           onCancel={() => setCreating(false)}
           onCreate={async (data) => {
             await onCreate(data)

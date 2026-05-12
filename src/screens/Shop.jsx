@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   SHOP_PACKAGES,
-  isTeacher,
+  isAdult,
   getProfileColors,
 } from '../profiles'
 
@@ -323,7 +323,7 @@ function TeacherShop({ onBack, onToggle, studentPackages = [] }) {
 }
 
 export default function Shop({ profile, studentPackages, onBack, onBuy, onToggleStatus }) {
-  if (isTeacher(profile)) {
+  if (isAdult(profile)) {
     return <TeacherShop onBack={onBack} onToggle={onToggleStatus} studentPackages={studentPackages} />
   }
   return <StudentShop profile={profile} onBack={onBack} onBuy={onBuy} />

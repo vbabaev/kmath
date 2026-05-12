@@ -23,8 +23,16 @@ export function getProfileColors(color) {
   return COLORS[color] ?? COLORS.indigo
 }
 
-export function isTeacher(profile) {
-  return profile?.role === 'teacher'
+export function isOwner(profile) {
+  return profile?.role === 'owner'
+}
+
+export function isAdult(profile) {
+  return profile?.role === 'owner' || profile?.role === 'parent'
+}
+
+export function isChild(profile) {
+  return profile?.role === 'child'
 }
 
 export function localDateYMD(date) {
@@ -102,7 +110,7 @@ export async function setProfileEmail(profile, googleEmail) {
 export async function buyPackage(profile, type) {
   const spec = SHOP_PACKAGES[type]
   if (!spec) return { ok: false, error: 'Unknown package' }
-  if (profile.role === 'teacher') return { ok: false, error: 'Teachers cannot buy packages' }
+  if (isAdult(profile)) return { ok: false, error: 'Only children can buy packages' }
   const balance = profile.points ?? 0
   if (balance < spec.cost) return { ok: false, error: 'Not enough stars' }
   const pkg = {

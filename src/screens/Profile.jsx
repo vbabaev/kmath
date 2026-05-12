@@ -1,6 +1,55 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Heatmap from '../components/Heatmap'
 import { getProfileColors } from '../profiles'
+import { getMyGroup } from '../groups'
+
+const ROLE_LABEL = { owner: 'Owner', parent: 'Parent', child: 'Child' }
+
+function HouseholdMembers({ profile }) {
+  const [group, setGroup] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getMyGroup()
+      .then((g) => { if (!cancelled) setGroup(g) })
+      .catch((e) => { if (!cancelled) setError(e?.message ?? 'Failed to load household') })
+    return () => { cancelled = true }
+  }, [])
+
+  if (error) return null
+  if (!group) return null
+
+  return (
+    <div className="bg-white rounded-3xl p-5 shadow-md mb-4 border-2 border-gray-100">
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">
+        {group.name}
+      </h3>
+      <div className="space-y-2">
+        {group.members.map((m) => {
+          const colors = getProfileColors(m.color)
+          const isSelf = m.id === profile.id
+          return (
+            <div key={m.id} className={`flex items-center gap-3 ${colors.bgLight} ${colors.border} border rounded-2xl px-3 py-2`}>
+              <span className="text-2xl">{m.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className={`font-semibold text-sm ${colors.text} truncate`}>
+                  {m.name}{isSelf && <span className="text-xs font-normal text-gray-400"> (you)</span>}
+                </div>
+                {m.googleEmail && (
+                  <div className="text-xs text-gray-500 truncate font-mono">{m.googleEmail}</div>
+                )}
+              </div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {ROLE_LABEL[m.role] ?? m.role}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function EmailManager({ profile, onSave }) {
   const [editing, setEditing] = useState(false)
@@ -29,7 +78,7 @@ function EmailManager({ profile, onSave }) {
           <div className="flex-1 text-sm">
             {profile.googleEmail
               ? <span className="font-mono text-gray-800">{profile.googleEmail}</span>
-              : <span className="text-gray-400 italic">No email set — only the teacher can access this profile</span>}
+              : <span className="text-gray-400 italic">No email set — only an adult in the household can access this profile</span>}
           </div>
           <button
             onClick={() => { setValue(profile.googleEmail ?? ''); setEditing(true); setError(null) }}
@@ -80,7 +129,7 @@ function EmailManager({ profile, onSave }) {
   )
 }
 
-export default function Profile({ profile, canSwitch = false, canManageEmail = false, onHome, onSwitch, onShop, onLogout, onSetEmail }) {
+export default function Profile({ profile, canSwitch = false, canManageEmail = false, showHousehold = false, onHome, onSwitch, onShop, onLogout, onSetEmail }) {
   const c = getProfileColors(profile.color)
   const sessions = profile.sessions ?? []
   const recent = [...sessions].reverse().slice(0, 5)
@@ -130,6 +179,8 @@ export default function Profile({ profile, canSwitch = false, canManageEmail = f
         {canManageEmail && (
           <EmailManager profile={profile} onSave={onSetEmail} />
         )}
+
+        {showHousehold && <HouseholdMembers profile={profile} />}
 
         <div className="bg-white rounded-3xl p-6 shadow-md mb-4 border-2 border-gray-100">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Last 30 days</h3>

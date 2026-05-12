@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import { configureAuth } from "./auth.js";
 import profilesRoutes from "./routes/profiles.js";
+import groupsRoutes from "./routes/groups.js";
 import healthRoutes from "./routes/health.js";
 import authRoutes from "./routes/auth.js";
 
@@ -30,6 +31,7 @@ export function createApp({ logger = true, auth = "session" } = {}) {
   app.use("/api/health", healthRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/profiles", profilesRoutes);
+  app.use("/api/groups", groupsRoutes);
 
   app.use((err, _req, res, _next) => {
     res.status(500).json({ error: "internal server error", message: err?.message });

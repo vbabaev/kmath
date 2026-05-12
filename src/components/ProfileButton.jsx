@@ -1,4 +1,6 @@
-import { getProfileColors, isTeacher } from '../profiles'
+import { getProfileColors } from '../profiles'
+
+const ROLE_LABELS = { owner: 'owner', parent: 'parent', child: null }
 
 export default function ProfileButton({ profile, onClick }) {
   const c = getProfileColors(profile.color)
@@ -12,7 +14,9 @@ export default function ProfileButton({ profile, onClick }) {
         {profile.emoji}
       </span>
       <span>{profile.name}</span>
-      {isTeacher(profile) && <span className="text-xs opacity-70">· teacher</span>}
+      {ROLE_LABELS[profile.role] && (
+        <span className="text-xs opacity-70">· {ROLE_LABELS[profile.role]}</span>
+      )}
     </button>
   )
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
-import { getProfileColors, isTeacher } from '../profiles'
+import { getProfileColors, isAdult } from '../profiles'
 import ProfileButton from '../components/ProfileButton'
 import ModuleTag, { moduleTagsFromCounts } from '../components/ModuleTag'
 
@@ -174,7 +174,9 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
   const total = groupModuleIds.reduce((s, id) => s + (counts[id] ?? 0), 0)
   const isEmpty = displayList.length === 0
   const activeGroupLabel = GROUPS.find((g) => g.id === group)?.label ?? ''
-  const teacher = isTeacher(activeProfile)
+  // "adult" stands in for what was previously the teacher role — owner
+  // and parent both see the assignment-authoring UI; child does not.
+  const teacher = isAdult(activeProfile)
   const assignments = activeProfile.assignments ?? []
   const hasAssignments = !teacher && assignments.length > 0
 

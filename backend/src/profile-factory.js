@@ -1,4 +1,4 @@
-import { profilesCollection } from "./db.js";
+import { profilesCollection, groupsCollection } from "./db.js";
 
 const DEFAULTS = {
   settings: { group: "school" },
@@ -7,10 +7,11 @@ const DEFAULTS = {
   packages: [],
   assignments: [],
   activeQuiz: null,
+  lastResult: null,
   schemaVersion: 1,
 };
 
-export function makeProfile({ id, name, emoji, color, role, googleEmail = null }) {
+export function makeProfile({ id, name, emoji, color, role, groupId, googleEmail = null }) {
   const now = new Date().toISOString();
   return {
     _id: id,
@@ -18,11 +19,35 @@ export function makeProfile({ id, name, emoji, color, role, googleEmail = null }
     emoji,
     color,
     role,
+    groupId,
     ...DEFAULTS,
     googleEmail,
     createdAt: now,
     updatedAt: now,
   };
+}
+
+export function makeGroup({ id, name, ownerId }) {
+  const now = new Date().toISOString();
+  return {
+    _id: id,
+    name,
+    ownerId,
+    createdAt: now,
+    updatedAt: now,
+    schemaVersion: 1,
+  };
+}
+
+export async function generateGroupId(ownerProfileId) {
+  const base = `g-${ownerProfileId}`;
+  const col = groupsCollection();
+  for (let i = 0; i < 100; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    const existing = await col.findOne({ _id: candidate }, { projection: { _id: 1 } });
+    if (!existing) return candidate;
+  }
+  return `${base}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function slugify(name) {

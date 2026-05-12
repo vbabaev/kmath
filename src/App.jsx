@@ -259,10 +259,11 @@ export default function App() {
         if (cancelled) return
         setAllProfiles(list)
 
-        // Pick the active profile: teacher may have a saved choice; student
-        // is always pinned to their primary.
+        // Pick the active profile: adults (owner/parent) may have a saved
+        // choice; children are always pinned to their primary.
         let id = getActiveProfileId()
-        if (me.role !== 'teacher') id = me.profileId
+        const meIsAdult = me.role === 'owner' || me.role === 'parent'
+        if (!meIsAdult) id = me.profileId
         if (!id || !list.find((p) => p.id === id)) id = me.profileId
         chooseId(id)
 
@@ -545,16 +546,21 @@ export default function App() {
     }
   }, [updateProfileInList, markSeen, applyRemoteSnapshot])
 
-  const isTeacherUser = authUser?.role === 'teacher'
+  const isAdultUser = authUser?.role === 'owner' || authUser?.role === 'parent'
+  const isOwnerUser = authUser?.role === 'owner'
 
   const assignableStudents = useMemo(() => {
-    if (!activeProfile || activeProfile.role !== 'teacher') return []
-    return allProfiles.filter((p) => p.role !== 'teacher' && p.id !== activeProfile.id)
+    if (!activeProfile) return []
+    const activeIsAdult = activeProfile.role === 'owner' || activeProfile.role === 'parent'
+    if (!activeIsAdult) return []
+    // GET /api/profiles already filters out other adults for the requesting
+    // adult — `allProfiles` is self + children at this point.
+    return allProfiles.filter((p) => p.role === 'child' && p.id !== activeProfile.id)
   }, [allProfiles, activeProfile])
 
   const studentPackages = useMemo(
     () => allProfiles
-      .filter((p) => p.role !== 'teacher')
+      .filter((p) => p.role === 'child')
       .map((student) => ({ student, packages: student.packages ?? [] })),
     [allProfiles],
   )
@@ -572,7 +578,8 @@ export default function App() {
           onSelect={selectProfile}
           onLogout={handleLogout}
           onCreate={handleCreateProfile}
-          canCreate={isTeacherUser}
+          canCreate={isAdultUser}
+          canInviteParent={isOwnerUser}
         />
       )}
       {screen === 'home' && activeProfile && (
@@ -610,8 +617,9 @@ export default function App() {
       {screen === 'profile' && activeProfile && (
         <Profile
           profile={activeProfile}
-          canSwitch={isTeacherUser}
-          canManageEmail={isTeacherUser}
+          canSwitch={isAdultUser}
+          canManageEmail={isAdultUser}
+          showHousehold={isAdultUser}
           onHome={goHome}
           onSwitch={goPicker}
           onShop={goShop}

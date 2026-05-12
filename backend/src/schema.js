@@ -93,7 +93,10 @@ export const CreateProfileSchema = z.object({
   name: z.string().min(1).max(50),
   emoji: z.string().min(1).max(10),
   color: z.string().min(1).max(20),
-  role: z.enum(["teacher", "student"]),
+  // "owner" is never created via this endpoint — it's set during the
+  // first-login bootstrap. Subsequent profiles are either co-parents
+  // (only invitable by the owner) or children (any adult can add).
+  role: z.enum(["parent", "child"]),
   googleEmail: z.string().email().nullable().optional(),
 });
 
