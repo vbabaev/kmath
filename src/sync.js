@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { apiGet, apiPut } from './api'
 
-const POLL_INTERVAL_MS = 3000
+const POLL_INTERVAL_MS = 750
 
 function channelName(profileId) {
   return `kmath:profile:${profileId}`
