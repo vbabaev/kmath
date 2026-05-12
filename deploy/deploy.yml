@@ -87,8 +87,11 @@
       changed_when: "'Started' in compose_up.stderr or 'Recreated' in compose_up.stderr or 'Built' in compose_up.stderr"
 
     - name: Wait for backend health
+      # Hit the public URL: Caddy redirects HTTP→HTTPS and the local TLS
+      # cert is only valid for klearn.vbabaev.uk, so probing 127.0.0.1
+      # fails the handshake. Public URL exercises Caddy + TLS + backend.
       ansible.builtin.uri:
-        url: http://127.0.0.1/api/health
+        url: https://klearn.vbabaev.uk/api/health
         status_code: 200
       register: health
       retries: 20
