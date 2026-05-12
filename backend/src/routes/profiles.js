@@ -125,6 +125,9 @@ router.put("/:id", requireProfileAccess, async (req, res) => {
     packages: parsed.data.packages,
     assignments: parsed.data.assignments,
     activeQuiz: parsed.data.activeQuiz ?? null,
+    lastResult: "lastResult" in req.body
+      ? (parsed.data.lastResult ?? null)
+      : (existing.lastResult ?? null),
     googleEmail: nextEmail,
     createdAt: existing.createdAt ?? now,
     updatedAt: now,
@@ -141,11 +144,12 @@ router.put("/:id", requireProfileAccess, async (req, res) => {
 router.get("/:id/sync", requireProfileAccess, async (req, res) => {
   const doc = await profilesCollection().findOne(
     { _id: req.params.id },
-    { projection: { activeQuiz: 1, assignments: 1, updatedAt: 1 } },
+    { projection: { activeQuiz: 1, lastResult: 1, assignments: 1, updatedAt: 1 } },
   );
   if (!doc) return res.status(404).json({ error: "not found" });
   res.json({
     activeQuiz: doc.activeQuiz ?? null,
+    lastResult: doc.lastResult ?? null,
     assignments: doc.assignments ?? [],
     updatedAt: doc.updatedAt ?? null,
   });

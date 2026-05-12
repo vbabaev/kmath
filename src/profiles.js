@@ -72,6 +72,10 @@ function profileToBody(p) {
   // Only forward googleEmail if it's defined on the source profile.
   // Backend ignores it from non-teacher callers anyway.
   if ('googleEmail' in p) body.googleEmail = p.googleEmail ?? null
+  // Only forward lastResult when explicitly set on the source profile —
+  // otherwise legacy callers would clobber the server's "pending Results
+  // screen" state.
+  if ('lastResult' in p) body.lastResult = p.lastResult ?? null
   return body
 }
 
@@ -184,9 +188,22 @@ function buildSessionEntry(result, profile) {
 
 export async function logSession(profile, result) {
   const entry = buildSessionEntry(result, profile)
+  // lastResult mirrors what the Results screen needs to render. Stored
+  // alongside activeQuiz=null so sibling tabs/devices see the same screen.
+  const lastResult = {
+    score: result.score,
+    totalAttempts: result.totalAttempts,
+    initialCount: result.initialCount,
+    completedProblems: result.completedProblems.map((c) => ({
+      moduleId: c.module.id,
+      attempts: c.attempts,
+      timeMs: c.timeMs,
+    })),
+  }
   return saveProfile({
     ...profile,
     activeQuiz: null,
+    lastResult,
     points: (profile.points ?? 0) + (entry.score ?? 0),
     sessions: [...(profile.sessions ?? []), entry],
   })

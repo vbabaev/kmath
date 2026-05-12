@@ -40,6 +40,23 @@ const AssignmentSchema = z.object({
   createdAt: z.string(),
 });
 
+// lastResult is the "pending Results screen" for this profile. It sticks
+// around on the doc from `finishQuiz` until the user dismisses Results
+// (Play Again or Home button), which is what lets other tabs / devices
+// route to the same Results view via /sync.
+export const LastResultSchema = z.object({
+  score: z.number().int(),
+  totalAttempts: z.number().int().nonnegative(),
+  initialCount: z.number().int().nonnegative(),
+  completedProblems: z.array(
+    z.object({
+      moduleId: z.string(),
+      attempts: z.number().int().positive(),
+      timeMs: z.number().int().nonnegative(),
+    }),
+  ),
+});
+
 // activeQuiz is opaque to the backend — it's a recovery snapshot. Validate
 // just enough to ensure shape, leave the inner problem details as `any`.
 export const ActiveQuizSchema = z.object({
@@ -68,6 +85,7 @@ export const ProfileBodySchema = z.object({
   packages: z.array(PackageSchema),
   assignments: z.array(AssignmentSchema),
   activeQuiz: ActiveQuizSchema.nullable().optional(),
+  lastResult: LastResultSchema.nullable().optional(),
   googleEmail: z.string().email().nullable().optional(),
 });
 

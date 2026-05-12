@@ -381,6 +381,48 @@ describe("PUT /api/profiles/:id/active-quiz", () => {
   });
 });
 
+describe("lastResult sync", () => {
+  const lastResult = () => ({
+    score: 100,
+    totalAttempts: 12,
+    initialCount: 10,
+    completedProblems: [
+      { moduleId: "multiplication", attempts: 1, timeMs: 3000 },
+      { moduleId: "division", attempts: 2, timeMs: 5000 },
+    ],
+  });
+
+  it("persists lastResult via full PUT and returns it via /sync", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), lastResult: lastResult() }),
+    ).expect(200);
+    const res = await asKira(request(app).get("/api/profiles/kira/sync")).expect(200);
+    assert.equal(res.body.lastResult.score, 100);
+    assert.equal(res.body.lastResult.completedProblems.length, 2);
+  });
+
+  it("clears lastResult when explicitly set to null", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), lastResult: lastResult() }),
+    ).expect(200);
+    await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), lastResult: null }),
+    ).expect(200);
+    const res = await asKira(request(app).get("/api/profiles/kira/sync")).expect(200);
+    assert.equal(res.body.lastResult, null);
+  });
+
+  it("preserves lastResult when the body omits the field", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), lastResult: lastResult() }),
+    ).expect(200);
+    // baseBody() does not include lastResult — older clients shouldn't clobber it.
+    await asKira(request(app).put("/api/profiles/kira").send({ ...baseBody(), points: 200 })).expect(200);
+    const res = await asKira(request(app).get("/api/profiles/kira/sync")).expect(200);
+    assert.equal(res.body.lastResult.score, 100);
+  });
+});
+
 describe("PUT /api/profiles/:id activeQuiz monotonicity", () => {
   it("full PUT also rejects activeQuiz regression (409)", async () => {
     await asKira(

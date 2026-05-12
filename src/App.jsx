@@ -23,8 +23,46 @@ import {
   generateProblems,
   countsFromProblems,
   fromProblemRef,
+  toProblemRef,
   getModule,
 } from './modules'
+
+// Screens that participate in the synced "flow" — when the server says
+// another tab/device has moved within this set, we follow. Other screens
+// (Profile, Shop, Picker, Login) are user-driven and don't auto-route.
+const FLOW_SCREENS = new Set(['home', 'quiz', 'results'])
+
+function freshQuizSnapshot(problems, isAssignment) {
+  const refs = problems.map(toProblemRef)
+  return {
+    problems: refs,
+    queue: refs.slice(),
+    index: 0,
+    score: 0,
+    streak: 0,
+    problemAttempts: 0,
+    totalAttempts: 0,
+    completedProblems: [],
+    isAssignment: !!isAssignment,
+  }
+}
+
+function hydrateLastResult(saved) {
+  if (!saved) return null
+  const completedProblems = (saved.completedProblems ?? [])
+    .map((c) => {
+      const m = getModule(c.moduleId)
+      return m ? { module: m, attempts: c.attempts, timeMs: c.timeMs } : null
+    })
+    .filter(Boolean)
+  if (!completedProblems.length) return null
+  return {
+    score: saved.score ?? 0,
+    totalAttempts: saved.totalAttempts ?? 0,
+    initialCount: saved.initialCount ?? completedProblems.length,
+    completedProblems,
+  }
+}
 import {
   putActiveQuiz,
   broadcastProfileUpdate,
@@ -103,35 +141,56 @@ export default function App() {
   }, [])
 
   // Apply an externally-sourced (poll, broadcast, or 409 refetch) sync
-  // payload: merge into allProfiles, and if we're on the quiz screen,
-  // either re-hydrate Quiz with the new state or route home if the other
-  // tab finished/cancelled. Local writes do NOT route through here —
-  // they update state directly and call markSeen so this hook ignores
-  // the echo on the next poll.
-  const applyRemoteSnapshot = useCallback(({ activeQuiz, assignments, updatedAt }) => {
+  // payload: merge into allProfiles, then mirror the screen state of
+  // whichever tab/device authored the change. Only mirrors across the
+  // flow screens (home, quiz, results) — if the user is on Profile or
+  // Shop, leave them where they are. Local writes do NOT route through
+  // here; they update state directly and call markSeen so this hook
+  // ignores the echo on the next poll.
+  const applyRemoteSnapshot = useCallback(({ activeQuiz, assignments, lastResult, updatedAt }) => {
     const id = activeProfileIdRef.current
     if (!id) return
     setAllProfiles((prev) => prev.map((p) =>
       p.id === id
-        ? { ...p, activeQuiz: activeQuiz ?? null, assignments: assignments ?? [], updatedAt: updatedAt ?? p.updatedAt }
+        ? {
+            ...p,
+            activeQuiz: activeQuiz ?? null,
+            lastResult: lastResult ?? null,
+            assignments: assignments ?? [],
+            updatedAt: updatedAt ?? p.updatedAt,
+          }
         : p,
     ))
-    if (screenRef.current !== 'quiz') return
-    if (!activeQuiz) {
-      setProblems([])
-      setSavedQuizState(null)
-      setIsAssignmentQuiz(false)
-      setSessionResult(null)
-      setScreen('home')
+    if (!FLOW_SCREENS.has(screenRef.current)) return
+
+    if (activeQuiz) {
+      const hydrated = hydrateQuizState(activeQuiz)
+      if (hydrated) {
+        setProblems(hydrated.problems)
+        setSavedQuizState(hydrated)
+        setIsAssignmentQuiz(hydrated.isAssignment)
+        setSessionResult(null)
+        setQuizRemoteKey((k) => k + 1)
+        setScreen('quiz')
+      }
       return
     }
-    const hydrated = hydrateQuizState(activeQuiz)
-    if (hydrated) {
-      setProblems(hydrated.problems)
-      setSavedQuizState(hydrated)
-      setIsAssignmentQuiz(hydrated.isAssignment)
-      setQuizRemoteKey((k) => k + 1)
+    if (lastResult) {
+      const hydrated = hydrateLastResult(lastResult)
+      if (hydrated) {
+        setProblems([])
+        setSavedQuizState(null)
+        setIsAssignmentQuiz(false)
+        setSessionResult(hydrated)
+        setScreen('results')
+      }
+      return
     }
+    setProblems([])
+    setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
+    setSessionResult(null)
+    setScreen('home')
   }, [])
 
   const { markSeen } = useProfileLiveSync(activeProfileId, {
@@ -148,6 +207,7 @@ export default function App() {
     if (updated.id === activeProfileIdRef.current) markSeen(updated.updatedAt)
     broadcastProfileUpdate(updated.id, {
       activeQuiz: updated.activeQuiz ?? null,
+      lastResult: updated.lastResult ?? null,
       assignments: updated.assignments ?? [],
       updatedAt: updated.updatedAt,
     })
@@ -159,20 +219,29 @@ export default function App() {
   }
 
   const routeForProfile = useCallback((profile) => {
-    const hydrated = hydrateQuizState(profile?.activeQuiz)
-    if (hydrated) {
-      setProblems(hydrated.problems)
-      setSavedQuizState(hydrated)
-      setIsAssignmentQuiz(hydrated.isAssignment)
+    const aq = hydrateQuizState(profile?.activeQuiz)
+    if (aq) {
+      setProblems(aq.problems)
+      setSavedQuizState(aq)
+      setIsAssignmentQuiz(aq.isAssignment)
       setSessionResult(null)
       setScreen('quiz')
-    } else {
+      return
+    }
+    const lr = hydrateLastResult(profile?.lastResult)
+    if (lr) {
       setProblems([])
       setSavedQuizState(null)
       setIsAssignmentQuiz(false)
-      setSessionResult(null)
-      setScreen('home')
+      setSessionResult(lr)
+      setScreen('results')
+      return
     }
+    setProblems([])
+    setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
+    setSessionResult(null)
+    setScreen('home')
   }, [])
 
   useEffect(() => {
@@ -237,17 +306,25 @@ export default function App() {
   }
 
   async function startQuiz(generatedProblems) {
-    if (activeProfile?.activeQuiz) {
-      try {
-        const updated = await saveProfile({ ...activeProfile, activeQuiz: null })
-        updateProfileInList(updated)
-        broadcastUpdated(updated)
-      } catch (err) {
-        console.error('clear activeQuiz failed', err)
-      }
+    if (!activeProfile) return
+    // Write the initial snapshot (and clear any stale lastResult from a
+    // previous session) in a SINGLE PUT so sibling tabs don't briefly see
+    // a "Home" state between Results → Quiz on a "Play Again".
+    const snapshot = freshQuizSnapshot(generatedProblems, false)
+    try {
+      const updated = await saveProfile({
+        ...activeProfile,
+        activeQuiz: snapshot,
+        lastResult: null,
+      })
+      updateProfileInList(updated)
+      broadcastUpdated(updated)
+    } catch (err) {
+      console.error('startQuiz failed', err)
+      return
     }
     setProblems(generatedProblems)
-    setSavedQuizState(null)
+    setSavedQuizState(hydrateQuizState(snapshot))
     setIsAssignmentQuiz(false)
     setSessionResult(null)
     setScreen('quiz')
@@ -260,7 +337,13 @@ export default function App() {
       routeForProfile(profile)
       return
     }
-    startQuiz(generateProblems(countsFromProblems(problems)))
+    // sessionResult.completedProblems is the canonical "last quiz's
+    // shape" — it's set both for the original finisher (from finishQuiz)
+    // and for sibling tabs (rehydrated from server lastResult via
+    // applyRemoteSnapshot). `problems` is only populated on the original
+    // finisher, so prefer sessionResult.
+    const source = sessionResult?.completedProblems ?? problems
+    startQuiz(generateProblems(countsFromProblems(source)))
   }
 
   async function startAssignment() {
@@ -268,11 +351,13 @@ export default function App() {
     const next = (activeProfile.assignments ?? [])[0]
     if (!next) return
     const generated = generateProblems(next.counts)
+    const snapshot = freshQuizSnapshot(generated, true)
     try {
       const updated = await saveProfile({
         ...activeProfile,
         assignments: (activeProfile.assignments ?? []).slice(1),
-        activeQuiz: null,
+        activeQuiz: snapshot,
+        lastResult: null,
       })
       updateProfileInList(updated)
       broadcastUpdated(updated)
@@ -281,7 +366,7 @@ export default function App() {
       return
     }
     setProblems(generated)
-    setSavedQuizState(null)
+    setSavedQuizState(hydrateQuizState(snapshot))
     setIsAssignmentQuiz(true)
     setSessionResult(null)
     setScreen('quiz')
@@ -328,12 +413,35 @@ export default function App() {
       const updated = await saveProfile({
         ...activeProfile,
         activeQuiz: null,
+        lastResult: null,
         points: Math.max(0, (activeProfile.points ?? 0) - penalty),
       })
       updateProfileInList(updated)
       broadcastUpdated(updated)
     } catch (err) {
       console.error('cancelQuiz failed', err)
+    }
+    setProblems([])
+    setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
+    setSessionResult(null)
+    setScreen('home')
+  }
+
+  // "Home" button on the Results screen. Distinct from goHome — this
+  // one explicitly clears lastResult on the server so sibling tabs that
+  // are also viewing Results follow back to Home with us.
+  async function dismissResults() {
+    if (!activeProfile) {
+      setScreen('home')
+      return
+    }
+    try {
+      const updated = await saveProfile({ ...activeProfile, lastResult: null })
+      updateProfileInList(updated)
+      broadcastUpdated(updated)
+    } catch (err) {
+      console.error('dismissResults failed', err)
     }
     setProblems([])
     setSavedQuizState(null)
@@ -416,6 +524,7 @@ export default function App() {
       updateProfileInList({ ...current, activeQuiz, updatedAt })
       broadcastProfileUpdate(current.id, {
         activeQuiz,
+        lastResult: current.lastResult ?? null,
         assignments: current.assignments ?? [],
         updatedAt,
       })
@@ -495,7 +604,7 @@ export default function App() {
         <Results
           result={sessionResult}
           onPlayAgain={playAgain}
-          onHome={goHome}
+          onHome={dismissResults}
         />
       )}
       {screen === 'profile' && activeProfile && (
