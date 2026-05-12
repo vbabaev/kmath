@@ -40,6 +40,14 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   // infinite ping-pong as each tab keeps "discovering" the same state.
   const skipInitialSave = useRef(!!initialState)
 
+  // Set the moment we know this is the quiz's last correct answer.
+  // From here on, the auto-save effect must NOT fire — `onFinish` is
+  // about to clear `activeQuiz` via the full PUT, and we don't want a
+  // late autosave to race past it and restore the last-problem snapshot
+  // (which is what was causing "refresh on Results → back to the last
+  // problem", and stale snapshots on sibling devices).
+  const pendingFinalize = useRef(false)
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
@@ -53,6 +61,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     if (!onSnapshot) return undefined
     if (skipInitialSave.current) {
       skipInitialSave.current = false
+      return undefined
+    }
+    if (pendingFinalize.current) {
       return undefined
     }
     const snapshot = {
@@ -110,6 +121,13 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     const earned = firstTry ? POINTS_CORRECT + bonus : 0
     const newScore = score + earned
     const newCompleted = [...completedProblems, { module, attempts: newProblemAttempts, timeMs }]
+
+    // Suppress further autosaves now if this was the final question —
+    // onFinish (fired 900 ms from now) will clear activeQuiz via the
+    // full PUT, and we don't want a late autosave restoring it.
+    if (index === queue.length - 1) {
+      pendingFinalize.current = true
+    }
 
     setFeedback('correct')
     setScore(newScore)
