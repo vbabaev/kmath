@@ -1,4 +1,4 @@
-import { apiGet, apiPut } from './api'
+import { apiGet, apiPost, apiPut } from './api'
 
 // --- Constants & pure helpers ---
 
@@ -8,10 +8,16 @@ export const SHOP_PACKAGES = {
 }
 
 const COLORS = {
-  indigo:  { text: 'text-indigo-600',  bgLight: 'bg-indigo-50',  border: 'border-indigo-200',  pill: 'bg-indigo-100 text-indigo-700' },
-  pink:    { text: 'text-pink-600',    bgLight: 'bg-pink-50',    border: 'border-pink-200',    pill: 'bg-pink-100 text-pink-700' },
-  emerald: { text: 'text-emerald-600', bgLight: 'bg-emerald-50', border: 'border-emerald-200', pill: 'bg-emerald-100 text-emerald-700' },
+  indigo:  { text: 'text-indigo-600',  bgLight: 'bg-indigo-50',  border: 'border-indigo-200',  pill: 'bg-indigo-100 text-indigo-700',  swatch: 'bg-indigo-400' },
+  pink:    { text: 'text-pink-600',    bgLight: 'bg-pink-50',    border: 'border-pink-200',    pill: 'bg-pink-100 text-pink-700',      swatch: 'bg-pink-400' },
+  emerald: { text: 'text-emerald-600', bgLight: 'bg-emerald-50', border: 'border-emerald-200', pill: 'bg-emerald-100 text-emerald-700',swatch: 'bg-emerald-400' },
+  amber:   { text: 'text-amber-600',   bgLight: 'bg-amber-50',   border: 'border-amber-200',   pill: 'bg-amber-100 text-amber-700',    swatch: 'bg-amber-400' },
+  violet:  { text: 'text-violet-600',  bgLight: 'bg-violet-50',  border: 'border-violet-200',  pill: 'bg-violet-100 text-violet-700',  swatch: 'bg-violet-400' },
+  rose:    { text: 'text-rose-600',    bgLight: 'bg-rose-50',    border: 'border-rose-200',    pill: 'bg-rose-100 text-rose-700',      swatch: 'bg-rose-400' },
 }
+
+export const COLOR_CHOICES = Object.keys(COLORS)
+export const EMOJI_CHOICES = ['👨', '👩', '👧', '👦', '🧑', '🧒', '🦊', '🐼', '🦁', '🐯', '🐸', '🦄']
 
 export function getProfileColors(color) {
   return COLORS[color] ?? COLORS.indigo
@@ -52,7 +58,7 @@ export async function getProfileById(id) {
 // splicing the response into its `allProfiles` state.
 
 function profileToBody(p) {
-  return {
+  const body = {
     name: p.name,
     emoji: p.emoji,
     color: p.color,
@@ -63,10 +69,30 @@ function profileToBody(p) {
     assignments: p.assignments ?? [],
     activeQuiz: p.activeQuiz ?? null,
   }
+  // Only forward googleEmail if it's defined on the source profile.
+  // Backend ignores it from non-teacher callers anyway.
+  if ('googleEmail' in p) body.googleEmail = p.googleEmail ?? null
+  return body
 }
 
 export async function saveProfile(profile, options) {
   return apiPut(`/profiles/${profile.id}`, profileToBody(profile), options)
+}
+
+export async function createProfile({ name, emoji, color, role, googleEmail }) {
+  return apiPost('/profiles', {
+    name,
+    emoji,
+    color,
+    role,
+    googleEmail: googleEmail ?? null,
+  })
+}
+
+// Teacher-only: change googleEmail on a profile. Backend silently ignores
+// the field for non-teacher requesters.
+export async function setProfileEmail(profile, googleEmail) {
+  return saveProfile({ ...profile, googleEmail: googleEmail ?? null })
 }
 
 export async function buyPackage(profile, type) {

@@ -16,6 +16,9 @@ dist-ssr
 backend/.env
 auth-allowlist.json
 
+# Claude work log (local-only, per-session continuity)
+.claude/worklog.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

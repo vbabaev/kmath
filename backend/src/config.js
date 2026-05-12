@@ -8,7 +8,7 @@ export const config = {
   sessionSecret: process.env.SESSION_SECRET || "dev-secret-change-me",
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-  allowlistPath: process.env.AUTH_ALLOWLIST_PATH || "./auth-allowlist.json",
+  bootstrapTeacherEmail: process.env.BOOTSTRAP_TEACHER_EMAIL || "",
   allowDevLogin: process.env.ALLOW_DEV_LOGIN === "true",
 };
 

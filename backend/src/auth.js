@@ -3,15 +3,13 @@ import MongoStore from "connect-mongo";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { config, hasOAuthCredentials } from "./config.js";
-import { lookupEmail } from "./allowlist.js";
 import { profilesCollection } from "./db.js";
+import { makeProfile, generateProfileId } from "./profile-factory.js";
 
 const SESSION_COOKIE = "kmath.sid";
 
 export function configureAuth(app, { mode = "session" } = {}) {
   if (mode === "dev") {
-    // Test-only path: trust the X-Profile-Id header, look the role up from
-    // the matching profile doc, and attach { profileId, role } as req.user.
     app.use(async (req, _res, next) => {
       const id = req.header("X-Profile-Id");
       if (!id) return next();
@@ -51,20 +49,41 @@ export function configureAuth(app, { mode = "session" } = {}) {
           callbackURL: `${config.appUrl}/api/auth/google/callback`,
         },
         async (_accessToken, _refreshToken, profile, done) => {
-          const email = profile.emails?.[0]?.value;
-          const entry = lookupEmail(email);
-          if (!entry) {
-            return done(null, false, { message: "email not in allowlist" });
-          }
+          const email = profile.emails?.[0]?.value?.toLowerCase();
+          if (!email) return done(null, false, { message: "no email" });
+
           try {
-            await profilesCollection().updateOne(
-              { _id: entry.profileId },
-              { $set: { googleEmail: email } },
-            );
+            const col = profilesCollection();
+            let doc = await col.findOne({ googleEmail: email });
+
+            if (!doc) {
+              // Bootstrap: the very first login by the configured bootstrap
+              // address creates a teacher profile so the app is usable on a
+              // fresh database.
+              const bootstrap = config.bootstrapTeacherEmail?.toLowerCase();
+              const total = await col.countDocuments();
+              if (bootstrap && email === bootstrap && total === 0) {
+                const id = await generateProfileId(profile.displayName ?? "Teacher");
+                doc = makeProfile({
+                  id,
+                  name: profile.displayName ?? "Teacher",
+                  emoji: "👨",
+                  color: "indigo",
+                  role: "teacher",
+                  googleEmail: email,
+                });
+                await col.insertOne(doc);
+              }
+            }
+
+            if (!doc) {
+              return done(null, false, { message: "email not associated with any profile" });
+            }
+
+            return done(null, { email, profileId: doc._id, role: doc.role });
           } catch (err) {
             return done(err);
           }
-          return done(null, { email, profileId: entry.profileId, role: entry.role });
         },
       ),
     );
@@ -89,4 +108,10 @@ export function requireProfileAccess(req, res, next) {
   if (req.user.role === "teacher") return next();
   if (req.params.id === req.user.profileId) return next();
   return res.status(403).json({ error: "forbidden" });
+}
+
+export function requireTeacher(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: "not authenticated" });
+  if (req.user.role !== "teacher") return res.status(403).json({ error: "teacher only" });
+  next();
 }

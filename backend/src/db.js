@@ -16,6 +16,12 @@ export async function connectDb(url = config.mongoUrl) {
     dbName = "kmath";
   }
   db = client.db(dbName);
+  // googleEmail must be unique across profiles (when set). Partial index
+  // skips docs where the field is null so we can have many "no email" profiles.
+  await db.collection("profiles").createIndex(
+    { googleEmail: 1 },
+    { unique: true, partialFilterExpression: { googleEmail: { $type: "string" } } },
+  );
   return db;
 }
 

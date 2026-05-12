@@ -1,0 +1,12 @@
+---
+# Single host: the production droplet. SSH alias `kmath.vbabaev.uk`
+# (the *old* hostname pre-rename to klearn) is still in ~/.ssh/config
+# and points at the same machine.
+all:
+  hosts:
+    klearn:
+      ansible_host: kmath.vbabaev.uk
+      ansible_user: root
+      ansible_python_interpreter: /usr/bin/python3
+  vars:
+    deploy_root: /opt/klearn

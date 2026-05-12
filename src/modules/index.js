@@ -1,5 +1,6 @@
 import multiplication from './multiplication'
 import division from './division'
+import factors from './factors'
 import fractions from './fractions'
 import decimals from './decimals'
 import compare from './compare'
@@ -20,6 +21,7 @@ import letterMath from './verbal/letterMath'
 export const MODULES = [
   multiplication,
   division,
+  factors,
   fractions,
   decimals,
   compare,

@@ -1,7 +1,86 @@
+import { useState } from 'react'
 import Heatmap from '../components/Heatmap'
 import { getProfileColors } from '../profiles'
 
-export default function Profile({ profile, canSwitch = false, onHome, onSwitch, onShop, onLogout }) {
+function EmailManager({ profile, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(profile.googleEmail ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save(next) {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(next)
+      setEditing(false)
+    } catch (err) {
+      setError(err?.detail || err?.message || 'Failed to save')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-3xl p-5 shadow-md mb-4 border-2 border-gray-100">
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Sign-in email</h3>
+      {!editing && (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 text-sm">
+            {profile.googleEmail
+              ? <span className="font-mono text-gray-800">{profile.googleEmail}</span>
+              : <span className="text-gray-400 italic">No email set — only the teacher can access this profile</span>}
+          </div>
+          <button
+            onClick={() => { setValue(profile.googleEmail ?? ''); setEditing(true); setError(null) }}
+            className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer"
+          >
+            {profile.googleEmail ? 'Change' : 'Set'}
+          </button>
+          {profile.googleEmail && (
+            <button
+              onClick={() => save(null)}
+              disabled={busy}
+              className="text-sm font-semibold text-gray-400 hover:text-red-500 cursor-pointer disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+      {editing && (
+        <div>
+          <input
+            type="email"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="kira@example.com"
+            className="w-full border-2 border-gray-200 rounded-xl px-4 py-2 mb-3 focus:outline-none focus:border-indigo-400"
+          />
+          {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setEditing(false); setError(null) }}
+              disabled={busy}
+              className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => save(value.trim() ? value.trim().toLowerCase() : null)}
+              disabled={busy}
+              className="flex-1 py-2 rounded-xl bg-indigo-500 text-white font-semibold hover:bg-indigo-600 cursor-pointer disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Profile({ profile, canSwitch = false, canManageEmail = false, onHome, onSwitch, onShop, onLogout, onSetEmail }) {
   const c = getProfileColors(profile.color)
   const sessions = profile.sessions ?? []
   const recent = [...sessions].reverse().slice(0, 5)
@@ -47,6 +126,10 @@ export default function Profile({ profile, canSwitch = false, onHome, onSwitch, 
             {totalProblems} problem{totalProblems === 1 ? '' : 's'} over {sessions.length} session{sessions.length === 1 ? '' : 's'}
           </div>
         </div>
+
+        {canManageEmail && (
+          <EmailManager profile={profile} onSave={onSetEmail} />
+        )}
 
         <div className="bg-white rounded-3xl p-6 shadow-md mb-4 border-2 border-gray-100">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Last 30 days</h3>

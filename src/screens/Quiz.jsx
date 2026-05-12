@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { toProblemRef } from '../modules'
 import ProfileButton from '../components/ProfileButton'
 
-const AUTOSAVE_DELAY_MS = 750
-
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
 const PENALTY_PER_UNSOLVED = 5
@@ -35,15 +33,28 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   const { module, problem } = queue[index]
   const isComplete = module.isComplete ?? defaultIsComplete
 
+  // Set on initial mount; flipped after the first auto-save effect run.
+  // Used to skip the very first save when we hydrated from a server-side
+  // snapshot — otherwise tab A submits → server T1 → tab B remounts from
+  // T1 → tab B's mount-save echoes T1 back as T2 → tab A remounts → ...
+  // infinite ping-pong as each tab keeps "discovering" the same state.
+  const skipInitialSave = useRef(!!initialState)
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
 
-  // Auto-save for F5 / tab-close recovery. Debounced + abortable so that
-  // an in-flight save is cancelled on unmount, avoiding races with cancel
-  // / finish writes that clear activeQuiz.
+  // Live-sync write: fires on every meaningful state change (submit,
+  // retry, advance) — no debounce, so other tabs / devices see the new
+  // state within their poll interval (or instantly via BroadcastChannel).
+  // AbortController cancels an in-flight save on unmount so we don't race
+  // with cancel/finish writes that clear activeQuiz.
   useEffect(() => {
-    if (!onSnapshot) return
+    if (!onSnapshot) return undefined
+    if (skipInitialSave.current) {
+      skipInitialSave.current = false
+      return undefined
+    }
     const snapshot = {
       problems: problems.map(toProblemRef),
       queue: queue.map(toProblemRef),
@@ -60,11 +71,8 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       isAssignment,
     }
     const ctl = new AbortController()
-    const t = setTimeout(() => onSnapshot(snapshot, ctl.signal), AUTOSAVE_DELAY_MS)
-    return () => {
-      clearTimeout(t)
-      ctl.abort()
-    }
+    onSnapshot(snapshot, ctl.signal)
+    return () => ctl.abort()
   }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment, onSnapshot])
 
   function appendToQueue(item) {

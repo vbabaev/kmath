@@ -42,7 +42,7 @@ const AssignmentSchema = z.object({
 
 // activeQuiz is opaque to the backend — it's a recovery snapshot. Validate
 // just enough to ensure shape, leave the inner problem details as `any`.
-const ActiveQuizSchema = z.object({
+export const ActiveQuizSchema = z.object({
   problems: z.array(z.any()),
   queue: z.array(z.any()),
   index: z.number().int().nonnegative(),
@@ -56,6 +56,8 @@ const ActiveQuizSchema = z.object({
 
 // Body schema for PUT /api/profiles/:id. _id and role are intentionally
 // not validated from the body — they're immutable from the client.
+// googleEmail is optional/nullable; PUT handler only applies changes to
+// it when the requester is a teacher.
 export const ProfileBodySchema = z.object({
   name: z.string(),
   emoji: z.string(),
@@ -66,6 +68,15 @@ export const ProfileBodySchema = z.object({
   packages: z.array(PackageSchema),
   assignments: z.array(AssignmentSchema),
   activeQuiz: ActiveQuizSchema.nullable().optional(),
+  googleEmail: z.string().email().nullable().optional(),
+});
+
+export const CreateProfileSchema = z.object({
+  name: z.string().min(1).max(50),
+  emoji: z.string().min(1).max(10),
+  color: z.string().min(1).max(20),
+  role: z.enum(["teacher", "student"]),
+  googleEmail: z.string().email().nullable().optional(),
 });
 
 // sessions are append-only: every existing entry must remain, in order.
@@ -77,6 +88,21 @@ export function validateAppendOnly(existing, next) {
     if (JSON.stringify(existing[i]) !== JSON.stringify(next[i])) {
       return { ok: false, error: `session at index ${i} was modified` };
     }
+  }
+  return { ok: true };
+}
+
+// activeQuiz lifecycle: null→snapshot and snapshot→null are always ok
+// (start/finalize). snapshot→snapshot must be monotonic in index and
+// totalAttempts, so a stale tab can't drag the quiz backwards.
+export function validateActiveQuizTransition(existing, next) {
+  if (next === null || next === undefined) return { ok: true };
+  if (existing === null || existing === undefined) return { ok: true };
+  if (next.index < existing.index) {
+    return { ok: false, error: `activeQuiz.index regression: ${next.index} < ${existing.index}` };
+  }
+  if (next.totalAttempts < existing.totalAttempts) {
+    return { ok: false, error: `activeQuiz.totalAttempts regression: ${next.totalAttempts} < ${existing.totalAttempts}` };
   }
   return { ok: true };
 }

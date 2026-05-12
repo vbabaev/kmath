@@ -70,6 +70,7 @@ const baseBody = () => ({
 
 const asKira = (req) => req.set("X-Profile-Id", "kira");
 const asDad = (req) => req.set("X-Profile-Id", "dad");
+const asTest = (req) => req.set("X-Profile-Id", "test");
 
 before(async () => {
   mongo = await MongoMemoryServer.create();
@@ -136,6 +137,46 @@ describe("GET /api/profiles/:id", () => {
   });
 });
 
+describe("POST /api/profiles", () => {
+  const create = (overrides = {}) => ({
+    name: "New Kid",
+    emoji: "🦊",
+    color: "violet",
+    role: "student",
+    ...overrides,
+  });
+
+  it("creates a new profile when called by a teacher", async () => {
+    const res = await asDad(request(app).post("/api/profiles").send(create())).expect(201);
+    assert.equal(res.body.name, "New Kid");
+    assert.equal(res.body.role, "student");
+    assert.equal(res.body.id, "new-kid");
+    assert.equal(res.body.googleEmail, null);
+  });
+
+  it("rejects creation by a student (403)", async () => {
+    await asKira(request(app).post("/api/profiles").send(create())).expect(403);
+  });
+
+  it("rejects unauthenticated creation (401)", async () => {
+    await request(app).post("/api/profiles").send(create()).expect(401);
+  });
+
+  it("400s on missing required fields", async () => {
+    await asDad(request(app).post("/api/profiles").send({ name: "X" })).expect(400);
+  });
+
+  it("suffixes the id when the slug collides", async () => {
+    const res = await asDad(request(app).post("/api/profiles").send(create({ name: "Kira" }))).expect(201);
+    assert.equal(res.body.id, "kira-2");
+  });
+
+  it("rejects an email already used by another profile (409)", async () => {
+    await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "k@example.com" })).expect(200);
+    await asDad(request(app).post("/api/profiles").send(create({ googleEmail: "k@example.com" }))).expect(409);
+  });
+});
+
 describe("PUT /api/profiles/:id", () => {
   it("updates points", async () => {
     const res = await asKira(request(app).put("/api/profiles/kira").send({ ...baseBody(), points: 150 })).expect(200);
@@ -196,5 +237,167 @@ describe("PUT /api/profiles/:id", () => {
 
   it("404s on missing profile", async () => {
     await asDad(request(app).put("/api/profiles/ghost").send(baseBody())).expect(404);
+  });
+
+  it("teacher can set googleEmail on a student", async () => {
+    const res = await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "kira@example.com" })).expect(200);
+    assert.equal(res.body.googleEmail, "kira@example.com");
+  });
+
+  it("teacher can clear googleEmail", async () => {
+    await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "kira@example.com" })).expect(200);
+    const res = await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: null })).expect(200);
+    assert.equal(res.body.googleEmail, null);
+  });
+
+  it("student cannot set their own googleEmail (silently ignored)", async () => {
+    const res = await asKira(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "self@example.com" })).expect(200);
+    assert.equal(res.body.googleEmail, null);
+  });
+
+  it("teacher cannot set a googleEmail already used by another profile (409)", async () => {
+    await asDad(request(app).put("/api/profiles/kira").send({ ...baseBody(), googleEmail: "shared@example.com" })).expect(200);
+    await asDad(request(app).put("/api/profiles/test").send({ ...baseBody(), name: "Test", googleEmail: "shared@example.com" })).expect(409);
+  });
+});
+
+const sampleSnapshot = (overrides = {}) => ({
+  problems: [{ moduleId: "multiplication", problem: { a: 3, b: 4, answer: 12 } }],
+  queue: [{ moduleId: "multiplication", problem: { a: 3, b: 4, answer: 12 } }],
+  index: 0,
+  score: 0,
+  streak: 0,
+  problemAttempts: 0,
+  totalAttempts: 0,
+  completedProblems: [],
+  isAssignment: false,
+  ...overrides,
+});
+
+describe("GET /api/profiles/:id/sync", () => {
+  it("returns the live-changing slice", async () => {
+    const res = await asKira(request(app).get("/api/profiles/kira/sync")).expect(200);
+    assert.deepEqual(res.body.assignments, []);
+    assert.equal(res.body.activeQuiz, null);
+    assert.ok("updatedAt" in res.body);
+  });
+
+  it("reflects an active quiz after a write", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot() }),
+    ).expect(200);
+    const res = await asKira(request(app).get("/api/profiles/kira/sync")).expect(200);
+    assert.equal(res.body.activeQuiz.index, 0);
+  });
+
+  it("teacher can sync a student's profile", async () => {
+    await asDad(request(app).get("/api/profiles/kira/sync")).expect(200);
+  });
+
+  it("student cannot sync another profile (403)", async () => {
+    await asKira(request(app).get("/api/profiles/dad/sync")).expect(403);
+  });
+
+  it("401 when unauthenticated", async () => {
+    await request(app).get("/api/profiles/kira/sync").expect(401);
+  });
+});
+
+describe("PUT /api/profiles/:id/active-quiz", () => {
+  it("writes a fresh snapshot", async () => {
+    const snap = sampleSnapshot();
+    const res = await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: snap }),
+    ).expect(200);
+    assert.equal(res.body.activeQuiz.index, 0);
+    assert.ok(res.body.updatedAt);
+  });
+
+  it("clears with null", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot() }),
+    ).expect(200);
+    const res = await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: null }),
+    ).expect(200);
+    assert.equal(res.body.activeQuiz, null);
+  });
+
+  it("accepts monotonic progress", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 0, totalAttempts: 0 }) }),
+    ).expect(200);
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 1, totalAttempts: 1 }) }),
+    ).expect(200);
+  });
+
+  it("rejects index regression (409)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 2, totalAttempts: 2 }) }),
+    ).expect(200);
+    const res = await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 1, totalAttempts: 2 }) }),
+    ).expect(409);
+    assert.ok(res.body.current);
+    assert.equal(res.body.current.activeQuiz.index, 2);
+  });
+
+  it("rejects totalAttempts regression (409)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 0, totalAttempts: 5 }) }),
+    ).expect(200);
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 0, totalAttempts: 3 }) }),
+    ).expect(409);
+  });
+
+  it("teacher can write a student's active quiz", async () => {
+    await asDad(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot() }),
+    ).expect(200);
+  });
+
+  it("student cannot write another student's active quiz (403)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/test/active-quiz").send({ activeQuiz: sampleSnapshot() }),
+    ).expect(403);
+  });
+
+  it("400 when activeQuiz field missing", async () => {
+    await asKira(request(app).put("/api/profiles/kira/active-quiz").send({})).expect(400);
+  });
+
+  it("400 on malformed snapshot", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: { index: "not a number" } }),
+    ).expect(400);
+  });
+
+  it("404 on missing profile", async () => {
+    await asDad(
+      request(app).put("/api/profiles/ghost/active-quiz").send({ activeQuiz: null }),
+    ).expect(404);
+  });
+});
+
+describe("PUT /api/profiles/:id activeQuiz monotonicity", () => {
+  it("full PUT also rejects activeQuiz regression (409)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 3, totalAttempts: 3 }) }),
+    ).expect(200);
+    await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), activeQuiz: sampleSnapshot({ index: 1, totalAttempts: 3 }) }),
+    ).expect(409);
+  });
+
+  it("full PUT can clear activeQuiz to null (finalize)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira/active-quiz").send({ activeQuiz: sampleSnapshot({ index: 3, totalAttempts: 3 }) }),
+    ).expect(200);
+    const res = await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), activeQuiz: null }),
+    ).expect(200);
+    assert.equal(res.body.activeQuiz, null);
   });
 });

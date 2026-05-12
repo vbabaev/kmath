@@ -12,7 +12,7 @@ export default function Login({ onLoginSuccess }) {
     getAuthConfig().then(setConfig)
     const params = new URLSearchParams(window.location.search)
     if (params.get('login') === 'denied') {
-      setError('Your account is not on the allowlist.')
+      setError("This Google account isn't associated with any profile. Ask the teacher to add your email to a profile.")
     }
   }, [])
 

@@ -14,6 +14,8 @@ import {
   addAssignment,
   popFirstAssignment,
   logSession,
+  createProfile,
+  setProfileEmail,
 } from './profiles'
 import { getActiveProfileId, setActiveProfileId, clearActiveProfileId } from './settings'
 import { getAuthMe, logout as apiLogout } from './auth'
@@ -23,6 +25,13 @@ import {
   fromProblemRef,
   getModule,
 } from './modules'
+import {
+  putActiveQuiz,
+  broadcastProfileUpdate,
+  useProfileLiveSync,
+  getProfileSync,
+} from './sync'
+import { ApiError } from './api'
 
 function hydrateQuizState(saved) {
   if (!saved) return null
@@ -57,6 +66,11 @@ export default function App() {
   const [savedQuizState, setSavedQuizState] = useState(null)
   const [isAssignmentQuiz, setIsAssignmentQuiz] = useState(false)
   const [sessionResult, setSessionResult] = useState(null)
+  // Bumped whenever a remote update (poll or BroadcastChannel) brings a
+  // newer activeQuiz than what the local Quiz instance is showing. Quiz
+  // uses this as its `key` so it remounts and re-hydrates from server state.
+  const [quizRemoteKey, setQuizRemoteKey] = useState(0)
+  const screenRef = useRef(null)
 
   const activeProfile = useMemo(
     () => allProfiles.find((p) => p.id === activeProfileId) ?? null,
@@ -68,6 +82,15 @@ export default function App() {
     activeProfileRef.current = activeProfile
   }, [activeProfile])
 
+  const activeProfileIdRef = useRef(activeProfileId)
+  useEffect(() => {
+    activeProfileIdRef.current = activeProfileId
+  }, [activeProfileId])
+
+  useEffect(() => {
+    screenRef.current = screen
+  }, [screen])
+
   const refresh = useCallback(async () => {
     const list = await getAllProfiles()
     setAllProfiles(list)
@@ -78,6 +101,57 @@ export default function App() {
     if (!updated) return
     setAllProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
   }, [])
+
+  // Apply an externally-sourced (poll, broadcast, or 409 refetch) sync
+  // payload: merge into allProfiles, and if we're on the quiz screen,
+  // either re-hydrate Quiz with the new state or route home if the other
+  // tab finished/cancelled. Local writes do NOT route through here —
+  // they update state directly and call markSeen so this hook ignores
+  // the echo on the next poll.
+  const applyRemoteSnapshot = useCallback(({ activeQuiz, assignments, updatedAt }) => {
+    const id = activeProfileIdRef.current
+    if (!id) return
+    setAllProfiles((prev) => prev.map((p) =>
+      p.id === id
+        ? { ...p, activeQuiz: activeQuiz ?? null, assignments: assignments ?? [], updatedAt: updatedAt ?? p.updatedAt }
+        : p,
+    ))
+    if (screenRef.current !== 'quiz') return
+    if (!activeQuiz) {
+      setProblems([])
+      setSavedQuizState(null)
+      setIsAssignmentQuiz(false)
+      setSessionResult(null)
+      setScreen('home')
+      return
+    }
+    const hydrated = hydrateQuizState(activeQuiz)
+    if (hydrated) {
+      setProblems(hydrated.problems)
+      setSavedQuizState(hydrated)
+      setIsAssignmentQuiz(hydrated.isAssignment)
+      setQuizRemoteKey((k) => k + 1)
+    }
+  }, [])
+
+  const { markSeen } = useProfileLiveSync(activeProfileId, {
+    enabled: !!activeProfileId,
+    onUpdate: applyRemoteSnapshot,
+  })
+
+  // Helper for the non-quiz save paths (group change, start, cancel,
+  // finish, assignment add/remove). Broadcasts the live-sync payload to
+  // sibling tabs and marks the new updatedAt as seen so our own next poll
+  // doesn't re-apply this write.
+  const broadcastUpdated = useCallback((updated) => {
+    if (!updated?.id) return
+    if (updated.id === activeProfileIdRef.current) markSeen(updated.updatedAt)
+    broadcastProfileUpdate(updated.id, {
+      activeQuiz: updated.activeQuiz ?? null,
+      assignments: updated.assignments ?? [],
+      updatedAt: updated.updatedAt,
+    })
+  }, [markSeen])
 
   function chooseId(id) {
     setActiveProfileId(id)
@@ -167,6 +241,7 @@ export default function App() {
       try {
         const updated = await saveProfile({ ...activeProfile, activeQuiz: null })
         updateProfileInList(updated)
+        broadcastUpdated(updated)
       } catch (err) {
         console.error('clear activeQuiz failed', err)
       }
@@ -200,6 +275,7 @@ export default function App() {
         activeQuiz: null,
       })
       updateProfileInList(updated)
+      broadcastUpdated(updated)
     } catch (err) {
       console.error('startAssignment failed', err)
       return
@@ -223,6 +299,9 @@ export default function App() {
         createdAt: new Date().toISOString(),
       })
       updateProfileInList(updated)
+      // Broadcasts on the STUDENT's channel so any of the student's tabs
+      // in the same browser see the new assignment immediately.
+      broadcastUpdated(updated)
     } catch (err) {
       console.error('assignCustomMix failed', err)
     }
@@ -233,6 +312,7 @@ export default function App() {
     try {
       const updated = await logSession(activeProfile, result)
       updateProfileInList(updated)
+      broadcastUpdated(updated)
     } catch (err) {
       console.error('finishQuiz failed', err)
     }
@@ -251,6 +331,7 @@ export default function App() {
         points: Math.max(0, (activeProfile.points ?? 0) - penalty),
       })
       updateProfileInList(updated)
+      broadcastUpdated(updated)
     } catch (err) {
       console.error('cancelQuiz failed', err)
     }
@@ -304,6 +385,18 @@ export default function App() {
     }
   }
 
+  async function handleCreateProfile(data) {
+    const created = await createProfile(data)
+    setAllProfiles((prev) => [...prev, created])
+    return created
+  }
+
+  async function handleSetProfileEmail(profile, email) {
+    const updated = await setProfileEmail(profile, email)
+    updateProfileInList(updated)
+    return updated
+  }
+
   async function handleLogout() {
     try {
       await apiLogout()
@@ -318,12 +411,30 @@ export default function App() {
     const current = activeProfileRef.current
     if (!current) return
     try {
-      const updated = await saveProfile({ ...current, activeQuiz: snapshot }, { signal })
-      updateProfileInList(updated)
+      const { activeQuiz, updatedAt } = await putActiveQuiz(current.id, snapshot, { signal })
+      markSeen(updatedAt)
+      updateProfileInList({ ...current, activeQuiz, updatedAt })
+      broadcastProfileUpdate(current.id, {
+        activeQuiz,
+        assignments: current.assignments ?? [],
+        updatedAt,
+      })
     } catch (err) {
-      if (err?.name !== 'AbortError') console.error('quiz auto-save failed', err)
+      if (err?.name === 'AbortError') return
+      if (err instanceof ApiError && err.status === 409) {
+        // Another tab (or device) advanced past us. Adopt the server's state.
+        try {
+          const fresh = await getProfileSync(current.id)
+          markSeen(fresh.updatedAt)
+          applyRemoteSnapshot({ ...fresh, source: 'conflict' })
+        } catch (e) {
+          console.error('conflict refetch failed', e)
+        }
+        return
+      }
+      console.error('activeQuiz save failed', err)
     }
-  }, [updateProfileInList])
+  }, [updateProfileInList, markSeen, applyRemoteSnapshot])
 
   const isTeacherUser = authUser?.role === 'teacher'
 
@@ -347,7 +458,13 @@ export default function App() {
         <Login onLoginSuccess={() => { window.location.href = '/' }} />
       )}
       {screen === 'profilePicker' && (
-        <ProfilePicker profiles={allProfiles} onSelect={selectProfile} onLogout={handleLogout} />
+        <ProfilePicker
+          profiles={allProfiles}
+          onSelect={selectProfile}
+          onLogout={handleLogout}
+          onCreate={handleCreateProfile}
+          canCreate={isTeacherUser}
+        />
       )}
       {screen === 'home' && activeProfile && (
         <Home
@@ -363,6 +480,7 @@ export default function App() {
       )}
       {screen === 'quiz' && (
         <Quiz
+          key={quizRemoteKey}
           problems={problems}
           activeProfile={activeProfile}
           initialState={savedQuizState}
@@ -384,10 +502,12 @@ export default function App() {
         <Profile
           profile={activeProfile}
           canSwitch={isTeacherUser}
+          canManageEmail={isTeacherUser}
           onHome={goHome}
           onSwitch={goPicker}
           onShop={goShop}
           onLogout={handleLogout}
+          onSetEmail={(email) => handleSetProfileEmail(activeProfile, email)}
         />
       )}
       {screen === 'shop' && activeProfile && (
