@@ -178,7 +178,7 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
   // and parent both see the assignment-authoring UI; child does not.
   const teacher = isAdult(activeProfile)
   const assignments = activeProfile.assignments ?? []
-  const hasAssignments = !teacher && assignments.length > 0
+  const hasAssignments = assignments.length > 0
 
   function quickQuiz(mod) {
     onStart(generateProblems({ [mod.id]: mod.defaultCount }))

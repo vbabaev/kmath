@@ -645,8 +645,9 @@ export default function App() {
     const activeIsAdult = activeProfile.role === 'owner' || activeProfile.role === 'parent'
     if (!activeIsAdult) return []
     // GET /api/profiles already filters out other adults for the requesting
-    // adult — `allProfiles` is self + children at this point.
-    return allProfiles.filter((p) => p.role === 'child' && p.id !== activeProfile.id)
+    // adult — `allProfiles` is self + children at this point. We include
+    // the adult themselves so they can self-assign for testing.
+    return allProfiles.filter((p) => p.role === 'child' || p.id === activeProfile.id)
   }, [allProfiles, activeProfile])
 
   const studentPackages = useMemo(
