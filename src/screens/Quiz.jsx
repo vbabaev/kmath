@@ -76,6 +76,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       totalAttempts,
       completedProblems: completedProblems.map((c) => ({
         moduleId: c.module.id,
+        problem: c.problem,
         attempts: c.attempts,
         timeMs: c.timeMs,
       })),
@@ -120,7 +121,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
     const earned = firstTry ? POINTS_CORRECT + bonus : 0
     const newScore = score + earned
-    const newCompleted = [...completedProblems, { module, attempts: newProblemAttempts, timeMs }]
+    // We snapshot `problem` here so the session history can later re-render
+    // the exact question the kid saw (used by the History detail page).
+    const newCompleted = [...completedProblems, { module, problem, attempts: newProblemAttempts, timeMs }]
 
     // Suppress further autosaves now if this was the final question —
     // onFinish (fired 900 ms from now) will clear activeQuiz via the

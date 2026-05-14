@@ -6,6 +6,8 @@ import ProfilePicker from './screens/ProfilePicker'
 import Profile from './screens/Profile'
 import Shop from './screens/Shop'
 import Login from './screens/Login'
+import MoodPicker from './screens/MoodPicker'
+import SessionDetail from './screens/SessionDetail'
 import {
   getAllProfiles,
   saveProfile,
@@ -52,7 +54,7 @@ function hydrateLastResult(saved) {
   const completedProblems = (saved.completedProblems ?? [])
     .map((c) => {
       const m = getModule(c.moduleId)
-      return m ? { module: m, attempts: c.attempts, timeMs: c.timeMs } : null
+      return m ? { module: m, problem: c.problem, attempts: c.attempts, timeMs: c.timeMs } : null
     })
     .filter(Boolean)
   if (!completedProblems.length) return null
@@ -78,7 +80,7 @@ function hydrateQuizState(saved) {
   const completedProblems = (saved.completedProblems ?? [])
     .map((c) => {
       const m = getModule(c.moduleId)
-      return m ? { module: m, attempts: c.attempts, timeMs: c.timeMs } : null
+      return m ? { module: m, problem: c.problem, attempts: c.attempts, timeMs: c.timeMs } : null
     })
     .filter(Boolean)
   if (!problems.length || !queue.length) return null
@@ -104,6 +106,18 @@ export default function App() {
   const [savedQuizState, setSavedQuizState] = useState(null)
   const [isAssignmentQuiz, setIsAssignmentQuiz] = useState(false)
   const [sessionResult, setSessionResult] = useState(null)
+  // Mood flow (assignments only). `pendingAssignment` carries the popped
+  // assignment + freshly-generated problems from start → mood-start →
+  // Quiz. `pendingFinish` carries the Quiz result from finish → mood-end
+  // → logSession. `assignmentMoodStart` is the mood captured before the
+  // quiz, held in App state until logSession folds it into the session
+  // entry. None of these are persisted on `activeQuiz` — F5 on a mood
+  // screen drops the kid back into Quiz (mood-end) or back to Home
+  // (mood-start), which is the documented behavior.
+  const [pendingAssignment, setPendingAssignment] = useState(null)
+  const [assignmentMoodStart, setAssignmentMoodStart] = useState(null)
+  const [pendingFinish, setPendingFinish] = useState(null)
+  const [selectedSessionIdx, setSelectedSessionIdx] = useState(null)
   // Bumped whenever a remote update (poll or BroadcastChannel) brings a
   // newer activeQuiz than what the local Quiz instance is showing. Quiz
   // uses this as its `key` so it remounts and re-hydrates from server state.
@@ -347,11 +361,32 @@ export default function App() {
     startQuiz(generateProblems(countsFromProblems(source)))
   }
 
+  // Step 1 of the assignment flow: pop the assignment, pre-generate
+  // problems (held in App state — NOT yet written as activeQuiz), then
+  // route to the mood-start screen. The actual quiz starts only after
+  // the kid picks a mood; see `onMoodStartPicked` below.
   async function startAssignment() {
     if (!activeProfile) return
     const next = (activeProfile.assignments ?? [])[0]
     if (!next) return
     const generated = generateProblems(next.counts)
+    setPendingAssignment({ assignment: next, problems: generated })
+    setAssignmentMoodStart(null)
+    setPendingFinish(null)
+    setScreen('mood-start')
+  }
+
+  // Step 2: mood picked → actually write the activeQuiz snapshot, pop the
+  // assignment from the queue, and route to Quiz. We do the assignment
+  // pop here (not in step 1) so an F5 on the mood-start screen leaves the
+  // queue intact — the kid can re-tap "Start Assignment" and get the
+  // mood prompt again.
+  async function onMoodStartPicked(mood) {
+    if (!activeProfile || !pendingAssignment) {
+      setScreen('home')
+      return
+    }
+    const { problems: generated } = pendingAssignment
     const snapshot = freshQuizSnapshot(generated, true)
     try {
       const updated = await saveProfile({
@@ -363,9 +398,11 @@ export default function App() {
       updateProfileInList(updated)
       broadcastUpdated(updated)
     } catch (err) {
-      console.error('startAssignment failed', err)
+      console.error('onMoodStartPicked failed', err)
       return
     }
+    setAssignmentMoodStart(mood)
+    setPendingAssignment(null)
     setProblems(generated)
     setSavedQuizState(hydrateQuizState(snapshot))
     setIsAssignmentQuiz(true)
@@ -393,8 +430,16 @@ export default function App() {
     }
   }
 
+  // For assignments we defer the session log + Results route until
+  // mood-end is picked. For Quick Quiz / Custom Mix we go straight to
+  // Results without a mood prompt.
   async function finishQuiz(result) {
     if (!activeProfile) return
+    if (isAssignmentQuiz) {
+      setPendingFinish(result)
+      setScreen('mood-end')
+      return
+    }
     try {
       const updated = await logSession(activeProfile, result)
       updateProfileInList(updated)
@@ -405,6 +450,35 @@ export default function App() {
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
     setSessionResult(result)
+    setScreen('results')
+  }
+
+  // Mood-end handler — fold both mood values into the session, log it,
+  // then route to Results. If the kid F5s on this screen `pendingFinish`
+  // is empty on remount; the still-present activeQuiz puts them back on
+  // the last problem of the quiz and they re-finish.
+  async function onMoodEndPicked(mood) {
+    if (!activeProfile || !pendingFinish) {
+      setScreen('home')
+      return
+    }
+    const result = pendingFinish
+    try {
+      const updated = await logSession(activeProfile, result, {
+        isAssignment: true,
+        moodStart: assignmentMoodStart ?? undefined,
+        moodEnd: mood,
+      })
+      updateProfileInList(updated)
+      broadcastUpdated(updated)
+    } catch (err) {
+      console.error('onMoodEndPicked failed', err)
+    }
+    setSavedQuizState(null)
+    setIsAssignmentQuiz(false)
+    setSessionResult(result)
+    setPendingFinish(null)
+    setAssignmentMoodStart(null)
     setScreen('results')
   }
 
@@ -459,11 +533,28 @@ export default function App() {
     } catch {
       // fall through
     }
+    // Cancel any in-flight mood flow when explicitly going Home — the
+    // user has navigated away (e.g. via Profile button on mood-start).
+    setPendingAssignment(null)
+    setAssignmentMoodStart(null)
+    setPendingFinish(null)
+    setSelectedSessionIdx(null)
     routeForProfile(profile)
   }
 
   async function goProfile() {
     try { await refresh() } catch {}
+    setSelectedSessionIdx(null)
+    setScreen('profile')
+  }
+
+  function viewSession(idx) {
+    setSelectedSessionIdx(idx)
+    setScreen('sessionDetail')
+  }
+
+  function backToProfile() {
+    setSelectedSessionIdx(null)
     setScreen('profile')
   }
 
@@ -614,6 +705,20 @@ export default function App() {
           onHome={dismissResults}
         />
       )}
+      {screen === 'mood-start' && activeProfile && (
+        <MoodPicker
+          title={`How are you feeling, ${activeProfile.name}?`}
+          subtitle={`Let's check in before you start ${pendingAssignment?.assignment?.fromName ?? 'your teacher'}'s assignment.`}
+          onPick={onMoodStartPicked}
+        />
+      )}
+      {screen === 'mood-end' && activeProfile && (
+        <MoodPicker
+          title="How are you feeling now?"
+          subtitle="One last check-in before we show you the results."
+          onPick={onMoodEndPicked}
+        />
+      )}
       {screen === 'profile' && activeProfile && (
         <Profile
           profile={activeProfile}
@@ -625,6 +730,14 @@ export default function App() {
           onShop={goShop}
           onLogout={handleLogout}
           onSetEmail={(email) => handleSetProfileEmail(activeProfile, email)}
+          onViewSession={viewSession}
+        />
+      )}
+      {screen === 'sessionDetail' && activeProfile && selectedSessionIdx !== null && (
+        <SessionDetail
+          profile={activeProfile}
+          sessionIdx={selectedSessionIdx}
+          onBack={backToProfile}
         />
       )}
       {screen === 'shop' && activeProfile && (

@@ -160,7 +160,18 @@ export async function popFirstAssignment(profile) {
   return saveProfile({ ...profile, assignments: queue.slice(1) })
 }
 
-function buildSessionEntry(result, profile) {
+// Serialize a live { module, problem, attempts, timeMs } row to the
+// storage shape used by `session.problems` and `lastResult.completedProblems`.
+function serializeProblem(c) {
+  return {
+    moduleId: c.module.id,
+    problem: c.problem,
+    attempts: c.attempts,
+    timeMs: c.timeMs,
+  }
+}
+
+function buildSessionEntry(result, profile, extras = {}) {
   const now = new Date()
   const moduleMap = {}
   for (const { module, attempts, timeMs } of result.completedProblems) {
@@ -181,7 +192,7 @@ function buildSessionEntry(result, profile) {
   }))
   const group = result.completedProblems[0]?.module.group ?? profile.settings?.group ?? 'school'
   const durationMs = result.completedProblems.reduce((sum, p) => sum + p.timeMs, 0)
-  return {
+  const entry = {
     date: localDateYMD(now),
     startedAt: now.toISOString(),
     group,
@@ -191,22 +202,29 @@ function buildSessionEntry(result, profile) {
     totalAttempts: result.totalAttempts,
     durationMs,
     modules,
+    // Per-problem replay data. The History detail page hydrates these
+    // back into `{ module, problem, attempts, timeMs }` via `getModule()`.
+    problems: result.completedProblems.map(serializeProblem),
   }
+  if (extras.isAssignment) entry.isAssignment = true
+  if (extras.moodStart) entry.moodStart = extras.moodStart
+  if (extras.moodEnd) entry.moodEnd = extras.moodEnd
+  return entry
 }
 
-export async function logSession(profile, result) {
-  const entry = buildSessionEntry(result, profile)
+// `extras` carries the assignment flag and the two mood values captured
+// around the quiz (see `App.jsx` mood-start / mood-end screens). Quick
+// Quiz / Custom Mix calls pass `{}` and the session entry simply omits
+// the new fields.
+export async function logSession(profile, result, extras = {}) {
+  const entry = buildSessionEntry(result, profile, extras)
   // lastResult mirrors what the Results screen needs to render. Stored
   // alongside activeQuiz=null so sibling tabs/devices see the same screen.
   const lastResult = {
     score: result.score,
     totalAttempts: result.totalAttempts,
     initialCount: result.initialCount,
-    completedProblems: result.completedProblems.map((c) => ({
-      moduleId: c.module.id,
-      attempts: c.attempts,
-      timeMs: c.timeMs,
-    })),
+    completedProblems: result.completedProblems.map(serializeProblem),
   }
   return saveProfile({
     ...profile,

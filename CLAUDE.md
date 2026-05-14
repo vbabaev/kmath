@@ -5,7 +5,7 @@ A game-like React web app for a 5th grader to practice across multiple top-level
 ## Tech Stack
 - **Vite 8 + React 19 + JavaScript** (no TypeScript)
 - **Tailwind CSS v4** via `@tailwindcss/vite` plugin (installed with `--legacy-peer-deps`)
-- No router — screen state managed in `App.jsx` (`profilePicker | home | quiz | results | profile`)
+- No router — screen state managed in `App.jsx` (`profilePicker | home | mood-start | quiz | mood-end | results | profile | sessionDetail | shop | login`)
 
 ## Project Structure
 ```
@@ -20,6 +20,7 @@ src/
     Heatmap.jsx        # 30-day activity grid (5 intensity tiers)
     ProfileButton.jsx  # Avatar pill shown on Home + Quiz, opens Profile screen
     ModuleTag.jsx      # Module pill (emoji + label + ×N) used in assignment cards
+    MoodBadge.jsx      # Tinted emoji+label pill for a mood value; used in history rows
   modules/
     index.js           # MODULES, GROUPS, SUBGROUP_META, getModule(id), getModulesByGroup(groupId)
     multiplication.jsx
@@ -45,10 +46,12 @@ src/
       letterMath.jsx   # A–E stand for numbers; solve equation, pick the matching letter
   screens/
     ProfilePicker.jsx  # Netflix-style avatar grid, shown on first load or when switching
-    Profile.jsx        # Stats page: points, 30-day heatmap, recent sessions
+    Profile.jsx        # Stats page: points, 30-day heatmap, mood trend, all-time stats, History tabs (Assignments / All)
     Home.jsx           # Group pill tabs + Quick Quiz/Custom Mix; Shop + profile pill in top-right
     Quiz.jsx           # Consumes problems: [{ module, problem }]
-    Results.jsx        # Accuracy % + score
+    Results.jsx        # Exports `ResultsBreakdown` (reused by SessionDetail) + the screen wrapper with Play Again / Home
+    SessionDetail.jsx  # Re-renders a past session via ResultsBreakdown by hydrating session.problems back into module refs
+    MoodPicker.jsx     # 5-emoji-card picker; rendered on the `mood-start` and `mood-end` screens around assignments
     Shop.jsx           # Student: buy 15/60-min iPad packages with stars. Teacher: view/toggle packages per student.
 ```
 
@@ -71,7 +74,7 @@ src/
   { problems: [{ moduleId, problem }],    // original queue (for initialCount)
     queue:    [{ moduleId, problem }],    // current queue (grows with retries)
     index, score, streak, problemAttempts, totalAttempts,
-    completedProblems: [{ moduleId, attempts, timeMs }],
+    completedProblems: [{ moduleId, problem, attempts, timeMs }],
     isAssignment }                        // true if this quiz came from a teacher assignment
   ```
   Module refs are serialised as `moduleId` (live module object can't be JSON-ified) and rehydrated in `App.hydrateQuizState` via `fromProblemRef`. Cleared on quiz finish/cancel; `input` / `feedback` / timers are NOT persisted (reset on restore).
@@ -90,13 +93,34 @@ src/
   ```js
   { date: 'YYYY-MM-DD', startedAt: ISO, group,
     score, completed, initialCount, totalAttempts, durationMs,
-    modules: [{ id, label, attempted, solved, avgTimeMs }] }
+    modules:  [{ id, label, attempted, solved, avgTimeMs }],
+    // Optional, written from the history+moods release onwards:
+    isAssignment?: true,             // present only for teacher-assigned quizzes
+    moodStart?: 'great'|'good'|'okay'|'meh'|'sad',  // mood captured before quiz
+    moodEnd?:   'great'|'good'|'okay'|'meh'|'sad',  // mood captured after quiz
+    problems?: [{ moduleId, problem, attempts, timeMs }] }   // per-problem replay payload
   ```
-  Sessions are append-only; `profile.points` accumulates across all sessions.
+  Sessions are append-only; `profile.points` accumulates across all sessions. All four new fields are **optional** — older sessions / Quick Quiz sessions simply omit them. The `problems` array carries the full per-problem `module.generate()` payload so `SessionDetail.jsx` can re-render the Results screen verbatim via `getModule(moduleId)`. Mood values are captured only for assignments (see "Mood flow" below); the Zod schema in `backend/src/schema.js` validates them as `z.enum(...)` and the inner `problem` payload as `z.unknown()`.
 - **First load:** if no `activeProfile`, `App.jsx` shows `ProfilePicker`. After selection, it routes to `Home`.
 - **Switching:** top-right pill on `Home` → `Profile` screen → "Switch profile" → back to `ProfilePicker`.
 - **Heatmap:** last 30 days, bucketed by local `YYYY-MM-DD`. Intensity thresholds (problems solved that day): `0 → gray-100`, `1–3 → green-200`, `4–6 → green-400`, `7–9 → green-600`, `10+ → green-800`.
 - **Tailwind color classes** for profiles live in `profiles.js` → `COLORS` / `getProfileColors(color)` — must be literal class strings (Tailwind JIT scans source). Add new colors here, not in JSX.
+
+## Mood flow (assignments only)
+- Two new screen states bracket every **assignment** quiz: `'mood-start'` (between accepting the assignment and entering Quiz) and `'mood-end'` (between finishing Quiz and Results). Quick Quiz / Custom Mix flow is unchanged — no mood prompts.
+- Picker has 5 cards: 😄 Great / 😊 Good / 😐 Okay / 😟 Meh / 😢 Sad. No skip — the kid must pick one to advance.
+- **Where the values live (audit surface):** `App.jsx` keeps three React-state values for the mood flow — `pendingAssignment` (popped assignment + generated problems between Home→mood-start→Quiz), `assignmentMoodStart` (mood string from mood-start, held through the whole quiz until `logSession`), and `pendingFinish` (Quiz result between Quiz→mood-end→Results). **None of these are written to `activeQuiz`** — the `validateActiveQuizTransition` monotonic check is brittle, and stashing extra fields there would invite sync conflicts. The trade-off: if the kid F5s on `mood-start`, they're dropped back to Home and have to re-tap "Start Assignment" (assignment queue is untouched — we pop only after the picker fires). If they F5 on `mood-end`, `activeQuiz` still holds the last-in-progress snapshot so they're routed back to the final Quiz problem, re-finish, and re-see `mood-end`. Mood values can also be "lost" across tab handoff (tab A captures mood-start, tab B finishes the quiz from sync) — best-effort capture, no enforcement.
+- The two mood values + `isAssignment: true` are folded into the session entry inside `logSession(profile, result, extras)` (third arg added with this feature). For Quick Quiz / Custom Mix, App passes no `extras`, so those fields are simply omitted from the session entry.
+
+## History view + per-module stats
+- `Profile.jsx` now renders **all-time stats** (highlights grid + per-module table) and a **History section** with two tabs:
+  - **Assignments** — sessions where `isAssignment === true`. Each row shows date, group, solved count, mood pills, +stars.
+  - **All** — every session in the profile, newest first.
+  - Clicking a row routes to `'sessionDetail'`, which re-uses `ResultsBreakdown` from `Results.jsx` to render the full per-problem breakdown for that historical session. Sessions written before this release lack `problems[]`; for those the detail page shows a "no replay available" notice but still shows mood/score.
+- A **Mood trend** strip shows the last 10 mood pairs (start → end) for at-a-glance "how does she feel about assignments lately."
+- **Stats aggregates** computed in `Profile.jsx → computeStats(sessions)`:
+  - Per-module: `solved`, `accuracy %`, `avgMs`, `fastestMs` (from `problems[]`), `stars earned` (10 × first-try solves)
+  - `totalSolved`, `mostPlayed`, `assignmentsCompleted`, `bestDay` (single calendar day with the most stars), `lastWeekSessions` (sessions in the trailing 7 local days)
 
 ## Module Interface
 Each module exports a default object:
@@ -124,8 +148,8 @@ Each module exports a default object:
 2. Array passed via `App.jsx` → `Quiz.jsx`
 3. Wrong answer: show "try again" feedback, reset input, **re-append problem to end of queue**, reset streak
 4. Correct answer: advance, award points only on first try; records `timeMs` for that problem
-5. On completion → `Results.jsx` with `{ score, totalAttempts, completedProblems, initialCount }`
-   - `completedProblems`: `[{ module, attempts, timeMs }]` — one entry per solved problem instance
+5. On completion → `Results.jsx` (for normal quizzes) or `mood-end` then `Results.jsx` (for assignments), with `{ score, totalAttempts, completedProblems, initialCount }`
+   - `completedProblems`: `[{ module, problem, attempts, timeMs }]` — one entry per solved problem instance, **including the live `problem` payload** so the History detail page can replay the exact question
    - `initialCount`: original queue length before any retries
 - **Auto-save:** `Quiz` has a `useEffect` that writes the current state to `profile.activeQuiz` on every meaningful change (submit, retry). `App` detects `activeQuiz` on mount and on `selectProfile` via `enterProfile()` and routes straight into `Quiz` with `initialState` instead of `home`.
 - **Cancel button** (top-left of Quiz, replaces the old "← Home" link): opens a confirmation modal showing `unsolved × 5 ⭐` as the penalty; confirm calls `onCancel(penalty)` → `App.cancelQuiz` which clears `activeQuiz`, deducts the penalty via `adjustActivePoints(-penalty)` (clamped to 0), and returns to Home. No session is logged for cancelled quizzes.
@@ -135,7 +159,7 @@ Each module exports a default object:
 ## Teacher / Assignment flow
 - **Teacher UI (Custom Mix, teachers only):** below the existing "Start Quiz" button, an "Or assign to a student" grid appears with one pill per non-teacher profile (`getAssignableStudents(excludeId)`). Clicking a student calls `onAssign(studentId, counts)` → `App.assignCustomMix` which **appends** `{ id, from, fromName, counts, createdAt }` to the target student's `profile.assignments` queue. Home then resets the stepper counts and flashes a "✓ Assigned to {name}" toast. Each student pill carries a `+N` badge showing how many items are already queued for that student.
 - **Student UI with pending assignments:** Home's mode switcher, Quick Quiz, and Custom Mix are all hidden. An `ActiveAssignmentCard` renders the head of the queue (teacher's name, total question count, **module tags** for each non-zero module, and a big "Start Assignment →" button), followed by an "Up next" list of `QueuedAssignmentCard`s (muted style, numbered `#2`, `#3`, …). The copy reminds the kid they can't start other quizzes until the current assignment (and any queued) are done.
-- **Starting an assignment:** `App.startAssignment` reads the first element of `profile.assignments`, generates fresh problems via `generateProblems`, pops it with `consumeActiveAssignment()`, clears any stale `activeQuiz`, then routes into Quiz with `isAssignment=true`. On completion, `finishQuiz` routes to Results; from there the kid returns to Home and, if more assignments remain, the next one becomes the new active card.
+- **Starting an assignment:** `App.startAssignment` reads the first element of `profile.assignments`, generates problems via `generateProblems`, **routes to the `mood-start` screen first** (no server write yet — assignment stays in the queue and `activeQuiz` is unwritten until the mood is captured). When the kid picks a mood, `onMoodStartPicked` pops the assignment from the queue, writes the fresh `activeQuiz` snapshot, and routes into Quiz with `isAssignment=true`. On completion, `finishQuiz` detects `isAssignmentQuiz` and routes to `mood-end` before logging — `onMoodEndPicked` calls `logSession(profile, result, { isAssignment, moodStart, moodEnd })`, then routes to Results.
 - **Escape-proofing follow-up:** Results' "Play Again" would otherwise start a fresh regular quiz and bypass the queue. `App.playAgain` now reads the current profile and — if `assignments.length > 0` — calls `goHome()` (which itself routes back into Quiz if an `activeQuiz` is still live, or into the assignment card on Home otherwise).
 
 ## Shop (iPad-time packages)

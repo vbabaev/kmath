@@ -593,3 +593,107 @@ describe("PUT /api/profiles/:id activeQuiz monotonicity", () => {
     assert.equal(res.body.activeQuiz, null);
   });
 });
+
+describe("session history extensions", () => {
+  const richSession = (overrides = {}) => ({
+    ...session(),
+    isAssignment: true,
+    moodStart: "good",
+    moodEnd: "great",
+    problems: [
+      {
+        moduleId: "multiplication",
+        problem: { a: 7, b: 8, answer: 56 },
+        attempts: 1,
+        timeMs: 4200,
+      },
+      {
+        moduleId: "wordSplit",
+        // Arbitrary JSON shape — schema uses z.unknown() for `problem`.
+        problem: {
+          w1: "WINDOW",
+          w2: "OPEN",
+          validAnswers: ["DOWN"],
+          isNone: false,
+          nested: { foo: [1, 2, { deep: true }] },
+        },
+        attempts: 2,
+        timeMs: 9100,
+      },
+    ],
+    ...overrides,
+  });
+
+  it("round-trips new session fields through PUT", async () => {
+    const entry = richSession();
+    const res = await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), sessions: [entry] }),
+    ).expect(200);
+    assert.equal(res.body.sessions.length, 1);
+    const got = res.body.sessions[0];
+    assert.equal(got.isAssignment, true);
+    assert.equal(got.moodStart, "good");
+    assert.equal(got.moodEnd, "great");
+    assert.equal(got.problems.length, 2);
+    assert.equal(got.problems[0].moduleId, "multiplication");
+    assert.equal(got.problems[0].problem.answer, 56);
+    assert.equal(got.problems[1].problem.nested.foo[2].deep, true);
+  });
+
+  it("accepts sessions without the new optional fields (back-compat)", async () => {
+    const res = await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), sessions: [session()] }),
+    ).expect(200);
+    assert.equal(res.body.sessions.length, 1);
+    const got = res.body.sessions[0];
+    assert.equal(got.isAssignment, undefined);
+    assert.equal(got.moodStart, undefined);
+    assert.equal(got.moodEnd, undefined);
+    assert.equal(got.problems, undefined);
+  });
+
+  it("problems[].problem accepts arbitrary JSON shapes", async () => {
+    const sess = {
+      ...session(),
+      problems: [
+        {
+          moduleId: "rectangleCutout",
+          problem: {
+            W: 10, H: 8, cw: 3, ch: 2,
+            arrayField: [1, 2, 3],
+            null_ok: null,
+            stringy: "anything goes",
+          },
+          attempts: 1,
+          timeMs: 5000,
+        },
+        {
+          moduleId: "primeSquareCubic",
+          problem: {
+            rows: [
+              { prime: 7, square: 36, cube: 27 },
+              { prime: 11, square: 25, cube: 8 },
+            ],
+            answer: 0,
+          },
+          attempts: 3,
+          timeMs: 12000,
+        },
+      ],
+    };
+    const res = await asKira(
+      request(app).put("/api/profiles/kira").send({ ...baseBody(), sessions: [sess] }),
+    ).expect(200);
+    assert.equal(res.body.sessions[0].problems[0].problem.null_ok, null);
+    assert.equal(res.body.sessions[0].problems[1].problem.rows.length, 2);
+  });
+
+  it("rejects invalid mood enum (400)", async () => {
+    await asKira(
+      request(app).put("/api/profiles/kira").send({
+        ...baseBody(),
+        sessions: [{ ...session(), moodStart: "ecstatic" }],
+      }),
+    ).expect(400);
+  });
+});

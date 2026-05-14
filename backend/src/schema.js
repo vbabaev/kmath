@@ -8,6 +8,23 @@ const SessionModuleSchema = z.object({
   avgTimeMs: z.number().int().nonnegative(),
 });
 
+// Mood values captured around assignments. Optional on the session entry
+// — Quick Quiz / Custom Mix sessions never set them. New sessions written
+// from this version onward will include them when the kid played an
+// assignment; older sessions remain valid (all fields are optional).
+const MoodSchema = z.enum(["great", "good", "okay", "meh", "sad"]);
+
+// One per problem the kid solved (or partially attempted) in this quiz —
+// keyed by moduleId so the frontend can rebuild the Results breakdown via
+// `getModule()`. `problem` is whatever shape the module's `generate()`
+// returned and is opaque to the backend.
+const SessionProblemSchema = z.object({
+  moduleId: z.string(),
+  problem: z.unknown(),
+  attempts: z.number().int().positive(),
+  timeMs: z.number().int().nonnegative(),
+});
+
 const SessionSchema = z.object({
   date: z.string(),
   startedAt: z.string(),
@@ -18,6 +35,12 @@ const SessionSchema = z.object({
   totalAttempts: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative(),
   modules: z.array(SessionModuleSchema),
+  // Optional history fields — added in the "session history + moods"
+  // release. Quiet on absence (old sessions / Quick Quiz sessions).
+  isAssignment: z.boolean().optional(),
+  moodStart: MoodSchema.optional(),
+  moodEnd: MoodSchema.optional(),
+  problems: z.array(SessionProblemSchema).optional(),
 });
 
 const PackageSchema = z.object({
