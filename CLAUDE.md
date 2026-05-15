@@ -195,7 +195,8 @@ Each module exports a default object:
   - `Home.jsx` mount → `sayAssignments(N, name)` if the queue is non-empty, else `say('greeting', {name})` (falls back to `'greetingNoName'` when nameless).
   - `Quiz.jsx` `useEffect` on `feedback` → `say('correct')` / `say('wrong')` on each transition (fires every retry, not just the first).
   - `Results.jsx` mount → `say('finish', {name: profileName})` (App passes `activeProfile.name` as `profileName`).
-- All copy lives in `src/finn/phrases.js` — categories: `greeting`, `greetingNoName`, `assignmentsOne`, `assignmentsMany`, `correct`, `wrong`, `finish`. Add variants by appending strings to the right array. `{name}`/`{count}` are the only supported placeholders; absent values render as empty string.
+  - `MoodPicker.jsx` mount → `say(bubbleCategory, {name: profileName})` when `bubbleCategory` is set. App passes `'moodStart'` on the mood-start screen and `'moodEnd'` on mood-end; the static `title` prop stays as the page heading and Finn adds a randomized variant of the same question.
+- All copy lives in `src/finn/phrases.js` — categories: `greeting`, `greetingNoName`, `assignmentsOne`, `assignmentsMany`, `correct`, `wrong`, `moodStart`, `moodEnd`, `finish`. Add variants by appending strings to the right array. `{name}`/`{count}` are the only supported placeholders; absent values render as empty string.
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic

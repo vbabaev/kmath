@@ -7,6 +7,9 @@
 // deliberately do NOT stash them on `activeQuiz` — that would invite
 // monotonic-sync conflicts and serialization edge cases on F5.
 
+import { useEffect } from 'react'
+import { useFinn } from '../finn/FinnContext'
+
 // Hard-coded class strings: Tailwind JIT must see them as literals.
 export const MOODS = [
   { id: 'great', emoji: '😄', label: 'Great',
@@ -25,7 +28,15 @@ export function getMood(id) {
   return MOODS.find((m) => m.id === id) ?? null
 }
 
-export default function MoodPicker({ title, subtitle, onPick }) {
+export default function MoodPicker({ title, subtitle, onPick, bubbleCategory, profileName }) {
+  // Finn asks the same question as the page title, but with friendly
+  // randomized phrasing. App.jsx passes `bubbleCategory` = 'moodStart'
+  // or 'moodEnd' depending on which side of the assignment we're on.
+  const { say } = useFinn()
+  useEffect(() => {
+    if (bubbleCategory) say(bubbleCategory, { name: profileName })
+  }, [say, bubbleCategory, profileName])
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-2xl w-full text-center">

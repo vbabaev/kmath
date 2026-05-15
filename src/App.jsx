@@ -714,6 +714,8 @@ export default function App() {
         <MoodPicker
           title={`How are you feeling, ${activeProfile.name}?`}
           subtitle={`Let's check in before you start ${pendingAssignment?.assignment?.fromName ?? 'your teacher'}'s assignment.`}
+          bubbleCategory="moodStart"
+          profileName={activeProfile.name}
           onPick={onMoodStartPicked}
         />
       )}
@@ -721,6 +723,8 @@ export default function App() {
         <MoodPicker
           title="How are you feeling now?"
           subtitle="One last check-in before we show you the results."
+          bubbleCategory="moodEnd"
+          profileName={activeProfile.name}
           onPick={onMoodEndPicked}
         />
       )}
