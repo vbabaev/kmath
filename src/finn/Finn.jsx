@@ -28,7 +28,7 @@ export default function Finn() {
         </button>
       )}
 
-      <div className="pointer-events-auto w-28 sm:w-36 md:w-44 select-none drop-shadow-md">
+      <div className="pointer-events-auto w-56 sm:w-72 md:w-88 select-none drop-shadow-md">
         <FinnMascot />
       </div>
 
