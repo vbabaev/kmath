@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { toProblemRef } from '../modules'
 import ProfileButton from '../components/ProfileButton'
+import { useFinn } from '../finn/FinnContext'
 
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
@@ -51,6 +52,16 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   useEffect(() => {
     inputRef.current?.focus()
   }, [index])
+
+  // Finn reacts each time the kid submits — picks a random "nice one!" /
+  // "no worries" phrase. Fires on every feedback transition (including
+  // wrong → null → wrong on retries), so multi-fail problems still get a
+  // fresh line each attempt.
+  const { say } = useFinn()
+  useEffect(() => {
+    if (feedback === 'correct') say('correct')
+    else if (feedback === 'wrong') say('wrong')
+  }, [feedback, say])
 
   // Live-sync write: fires on every meaningful state change (submit,
   // retry, advance) — no debounce, so other tabs / devices see the new

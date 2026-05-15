@@ -1,0 +1,184 @@
+// Phrase pools for Finn the Fennec Fox.
+// Placeholders: {name} (kid's profile name), {count} (assignment count).
+// If a category needs different copy for singular vs plural counts, split
+// into two arrays (e.g. `assignmentsOne` / `assignmentsMany`) and have the
+// caller pick — keeps the templating dumb.
+
+export const PHRASES = {
+  greeting: [
+    "Hi {name}! How are you today?",
+    "Hey {name}! Great to see you!",
+    "Welcome back, {name}!",
+    "Hi {name}! Ready to learn something cool?",
+    "Hello {name}! What an awesome day to practice!",
+    "Hey there, {name}! Hope you're having a great day.",
+    "Yo {name}! Let's make today count.",
+    "Hi {name}! What shall we explore today?",
+    "Howdy {name}! Math adventures await!",
+    "Hi {name}! I missed you — let's play!",
+    "Hey {name}! Brain warm-up time?",
+    "Welcome back, {name}! Stars are waiting for you.",
+    "Hi {name}! Today's a good day for some practice.",
+    "Hey {name}! Let's flex those math muscles.",
+    "Good to see you, {name}! Pick something fun.",
+  ],
+
+  greetingNoName: [
+    "Hi there! Welcome to KMath!",
+    "Hey friend! Ready for a brain workout?",
+    "Hello! Who's playing today?",
+    "Welcome! Let's learn something cool.",
+    "Hi! Pick a profile and let's go!",
+  ],
+
+  assignmentsOne: [
+    "You've got 1 assignment today, {name} — let's roll!",
+    "Hey {name}, your teacher left you 1 assignment. You've got this!",
+    "1 assignment waiting for you, {name}. We can totally crush it!",
+    "Just 1 quick assignment today, {name} — easy peasy!",
+    "Inbox: 1 assignment. Let's tackle it together!",
+    "Quick mission today, {name}: 1 assignment. Ready?",
+    "One assignment waiting, {name}. Knock it out and earn those stars!",
+    "Single task ahead, {name}. Let's make it count!",
+  ],
+
+  assignmentsMany: [
+    "You've got {count} assignments today, {name} — let's roll!",
+    "{count} assignments? No problem, {name}, one at a time!",
+    "Hey {name}, {count} assignments coming up. Let's GO!",
+    "Mission today, {name}: {count} assignments. We've got this!",
+    "{count} assignments waiting! Pace yourself, {name} — one step at a time.",
+    "Inbox check: {count} assignments. Let's start with the first one!",
+    "{count} adventures ahead today. Ready, {name}?",
+    "{count} tasks lined up, {name}. Stars incoming! ⭐",
+    "Big day, {name} — {count} assignments to conquer!",
+    "Hey {name}! Your teachers loaded you up: {count} assignments today.",
+  ],
+
+  correct: [
+    "Nice one!",
+    "Way to go!",
+    "Boom! 🎉",
+    "Yes! You got it!",
+    "Awesome work!",
+    "Smart cookie!",
+    "Sharp as ever!",
+    "That's the spirit!",
+    "Crushing it!",
+    "Brilliant!",
+    "Nailed it!",
+    "You're on fire!",
+    "Math wizard alert!",
+    "Boom shakalaka!",
+    "Knew you'd get it!",
+    "High five! ✋",
+    "Easy peasy lemon squeezy!",
+    "Perfect!",
+    "You make this look easy!",
+    "Sweet!",
+    "Heck yes!",
+    "Star power activated! ⭐",
+    "Genius mode: on.",
+    "Brain = unstoppable.",
+    "That's how it's done!",
+    "Pow! Right on!",
+    "You did the thing!",
+    "Beep boop — correct!",
+    "Wowzers!",
+    "Crystal clear thinking!",
+    "Pure skill!",
+    "Smooth move!",
+    "Brain power!",
+    "Top marks!",
+    "Look at you go!",
+    "Splendid!",
+    "Fantastic!",
+    "Spot on!",
+    "Right as rain!",
+    "You nailed the landing!",
+  ],
+
+  wrong: [
+    "It's okay — mistakes are part of learning!",
+    "No worries, try again!",
+    "Close! Every miss makes you sharper.",
+    "Not yet — but you'll get it!",
+    "Mistakes mean your brain is growing 🌱",
+    "Almost! Take another look.",
+    "All good — give it another shot.",
+    "Hmm, not quite. You'll find it!",
+    "It's fine, every pro got it wrong first.",
+    "Shake it off — try again!",
+    "Even Einstein had off days. You've got this.",
+    "Nope, but you're learning. Try once more!",
+    "Wrong answer ≠ wrong you. Try again!",
+    "Don't sweat it — one more try!",
+    "Brain pause. Reset. Go again!",
+    "That's how we learn — try once more!",
+    "Not the answer, but a great attempt!",
+    "Keep going — the next try might be the one!",
+    "You're so close, I can feel it!",
+    "It's all part of the process. Onward!",
+    "Oof! No big deal — try again.",
+    "Every miss is a step closer to a hit.",
+    "Take a breath, try once more.",
+    "Wrong this time, right next time!",
+    "Even I get stuck sometimes. Try again!",
+    "Mistakes are proof you're trying. Keep going!",
+    "Whoops — happens to everyone.",
+    "Not the one, but you're learning fast.",
+    "Reset the brain, give it another spin!",
+    "You can do this. One more go!",
+  ],
+
+  finish: [
+    "Amazing job, {name}!",
+    "You did it, {name}! Look at that brain!",
+    "Whew! That was awesome, {name}!",
+    "Bravo, {name}! Take a victory lap!",
+    "Mission complete — well done, {name}!",
+    "I'm so proud of you, {name}! ⭐",
+    "You're getting better every day, {name}!",
+    "Quiz down. Stars up. Way to go, {name}!",
+    "Round of applause for {name}! 👏",
+    "Look at you, {name} — total rockstar.",
+    "That was great practice, {name}!",
+    "Done and dusted. Great work, {name}!",
+    "Your brain just leveled up, {name}!",
+    "Phenomenal, {name}!",
+    "Quiz: defeated. {name}: legendary.",
+    "Practice makes progress — and you proved it, {name}!",
+    "Keep at it, {name} — you're getting sharper every day.",
+    "Big high five, {name}! ✋",
+    "Smooth as butter, {name}!",
+    "Quiz cleared! You earned those stars, {name}!",
+    "Look at those results, {name}! You're glowing.",
+    "Another one in the books, {name}. Proud of you!",
+    "{name}, your future self is going to thank you!",
+    "Mission accomplished, {name} — explorer of numbers!",
+    "{name}, you just made math your friend.",
+    "Nice grind, {name}. Brains take practice — yours is buff now 💪",
+    "Done! And done WELL, {name}.",
+    "Keep that streak going, {name} — you're unstoppable.",
+    "That was a fun one, {name}!",
+    "Quiz: ✅. Confidence: 📈. Way to go, {name}!",
+  ],
+}
+
+// Pick a random phrase and fill in {placeholders}.
+//   pickPhrase('correct')                        → "Nailed it!"
+//   pickPhrase('greeting', { name: 'Kira' })     → "Hi Kira! ..."
+export function pickPhrase(category, vars = {}) {
+  const pool = PHRASES[category]
+  if (!pool || !pool.length) return ''
+  const template = pool[Math.floor(Math.random() * pool.length)]
+  return template.replace(/\{(\w+)\}/g, (_, key) =>
+    vars[key] !== undefined && vars[key] !== null ? String(vars[key]) : '',
+  )
+}
+
+// Convenience: pick the right assignments-pool based on count, fill {name}/{count}.
+export function pickAssignmentsPhrase(count, name) {
+  if (!count) return ''
+  return pickPhrase(count === 1 ? 'assignmentsOne' : 'assignmentsMany', { count, name })
+}

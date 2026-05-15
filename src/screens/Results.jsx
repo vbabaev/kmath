@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { useFinn } from '../finn/FinnContext'
+
 function getRank(accuracy) {
   if (accuracy >= 90) return { label: 'Math Wizard! 🧙', color: 'text-purple-600' }
   if (accuracy >= 70) return { label: 'Star Student! ⭐', color: 'text-yellow-500' }
@@ -109,7 +112,13 @@ export function ResultsBreakdown({ result }) {
   )
 }
 
-export default function Results({ result, onPlayAgain, onHome }) {
+export default function Results({ result, profileName, onPlayAgain, onHome }) {
+  // Finn drops a motivational line when the kid lands on Results.
+  const { say } = useFinn()
+  useEffect(() => {
+    say('finish', { name: profileName })
+  }, [say, profileName])
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full text-center">

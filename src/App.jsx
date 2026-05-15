@@ -28,6 +28,8 @@ import {
   toProblemRef,
   getModule,
 } from './modules'
+import { FinnProvider } from './finn/FinnContext'
+import Finn from './finn/Finn'
 
 // Screens that participate in the synced "flow" — when the server says
 // another tab/device has moved within this set, we follow. Other screens
@@ -660,6 +662,7 @@ export default function App() {
   if (screen === null) return null
 
   return (
+    <FinnProvider>
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       {screen === 'login' && (
         <Login onLoginSuccess={() => { window.location.href = '/' }} />
@@ -702,6 +705,7 @@ export default function App() {
       {screen === 'results' && (
         <Results
           result={sessionResult}
+          profileName={activeProfile?.name}
           onPlayAgain={playAgain}
           onHome={dismissResults}
         />
@@ -750,6 +754,8 @@ export default function App() {
           onToggleStatus={handleSetPackageStatus}
         />
       )}
+      <Finn />
     </div>
+    </FinnProvider>
   )
 }

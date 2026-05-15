@@ -21,6 +21,11 @@ src/
     ProfileButton.jsx  # Avatar pill shown on Home + Quiz, opens Profile screen
     ModuleTag.jsx      # Module pill (emoji + label + ×N) used in assignment cards
     MoodBadge.jsx      # Tinted emoji+label pill for a mood value; used in history rows
+  finn/
+    Finn.jsx           # Floating bottom-right mascot wrapper + speech bubble
+    FinnMascot.jsx     # SVG of Finn the Fennec Fox
+    FinnContext.jsx    # FinnProvider + useFinn() — owns current message + auto-hide timer
+    phrases.js         # PHRASES pools + pickPhrase()/pickAssignmentsPhrase() helpers
   modules/
     index.js           # MODULES, GROUPS, SUBGROUP_META, getModule(id), getModulesByGroup(groupId)
     multiplication.jsx
@@ -178,6 +183,19 @@ Each module exports a default object:
 - **Purchase flow (student):** `StudentShop` shows the current balance, two `BuyCard`s (disabled + "Need X more" caption if balance < cost), and a list of already-bought packages (newest first, active highlighted emerald, used dimmed + strike-through). Clicking a card opens `ConfirmModal` → calls `App.handleBuyPackage(type)` → `profiles.buyPackage(profileId, type)` (validates balance server-side, debits `profile.points`, appends package) → `refreshProfile()`. A green toast confirms success; `{ok:false, error}` surfaces an inline warning toast.
 - **Teacher flow:** `TeacherShop` tabs between "Active" (default) and "Used" with counts in the tab labels; within each tab, packages are grouped under each student's name (colored via their profile colors). Students with zero packages in the active tab are hidden. Each row has a toggle button — "Mark used" (active→used, sets `usedAt`) or "Restore" (used→active, clears `usedAt`). Toggle calls `App.handleSetPackageStatus(studentId, pkgId, nextStatus)` → `profiles.setPackageStatus(...)` → bumps `shopReloadKey` to re-aggregate. `getAllStudentPackages()` returns `[{ student, packages }]` across all non-teacher profiles; the screen filters/sorts in-memory.
 - **Balance checks are single-sided**: `buyPackage` refuses if `points < cost`. No refunds when the teacher toggles status — `status` is purely bookkeeping, independent of stars.
+
+## Finn the Fennec Fox (mascot)
+- Floating bottom-right SVG character with a speech bubble; visible on every screen via `<Finn />` rendered at the root of `App.jsx`. Container is `pointer-events-none` so it never blocks underlying UI; only the bubble and mascot itself are clickable. The bubble dismisses on click.
+- `FinnProvider` in `src/finn/FinnContext.jsx` owns the single current message + auto-hide timer (~18s, see `BUBBLE_TTL_MS`). Successive `say()` calls replace the current message and reset the timer.
+- `useFinn()` exposes:
+  - `say(category, vars)` — pick a random phrase from `PHRASES[category]` and fill `{name}`/`{count}` placeholders; one re-roll if it matches the previous pick from the same category (cheap dedup).
+  - `sayAssignments(count, name)` — picks the right singular/plural assignments pool.
+  - `clear()` — hide the bubble early.
+- Triggers wired in:
+  - `Home.jsx` mount → `sayAssignments(N, name)` if the queue is non-empty, else `say('greeting', {name})` (falls back to `'greetingNoName'` when nameless).
+  - `Quiz.jsx` `useEffect` on `feedback` → `say('correct')` / `say('wrong')` on each transition (fires every retry, not just the first).
+  - `Results.jsx` mount → `say('finish', {name: profileName})` (App passes `activeProfile.name` as `profileName`).
+- All copy lives in `src/finn/phrases.js` — categories: `greeting`, `greetingNoName`, `assignmentsOne`, `assignmentsMany`, `correct`, `wrong`, `finish`. Add variants by appending strings to the right array. `{name}`/`{count}` are the only supported placeholders; absent values render as empty string.
 
 ## Quiz Modes (Home screen)
 - **Quick Quiz**: 10 questions from one selected topic

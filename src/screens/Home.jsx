@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MODULES, GROUPS, SUBGROUP_META, getModulesByGroup, generateProblems } from '../modules'
 import { getProfileColors, isAdult } from '../profiles'
 import ProfileButton from '../components/ProfileButton'
 import ModuleTag, { moduleTagsFromCounts } from '../components/ModuleTag'
+import { useFinn } from '../finn/FinnContext'
 
 function buildDisplayList(groupId) {
   const list = []
@@ -179,6 +180,17 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
   const teacher = isAdult(activeProfile)
   const assignments = activeProfile.assignments ?? []
   const hasAssignments = assignments.length > 0
+
+  // Finn greets the kid on Home mount. Re-fires when assignment count
+  // changes (e.g. new task arrived from a teacher in another tab).
+  const { say, sayAssignments } = useFinn()
+  useEffect(() => {
+    if (assignments.length > 0) {
+      sayAssignments(assignments.length, activeProfile.name)
+    } else {
+      say(activeProfile.name ? 'greeting' : 'greetingNoName', { name: activeProfile.name })
+    }
+  }, [assignments.length, activeProfile.name, say, sayAssignments])
 
   function quickQuiz(mod) {
     onStart(generateProblems({ [mod.id]: mod.defaultCount }))
