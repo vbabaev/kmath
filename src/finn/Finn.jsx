@@ -16,14 +16,14 @@ export default function Finn() {
           key={message.at}
           type="button"
           onClick={clear}
-          className="pointer-events-auto finn-bubble relative max-w-[240px] sm:max-w-[280px] bg-white border-2 border-amber-200 rounded-2xl shadow-xl px-4 py-3 text-gray-800 text-sm font-medium leading-snug text-left cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
+          className="pointer-events-auto finn-bubble relative max-w-[240px] sm:max-w-[280px] bg-white border-2 border-amber-200 rounded-2xl shadow-xl px-4 py-3 text-gray-800 text-xl font-medium leading-snug text-left cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
           aria-label="Dismiss Finn's message"
         >
           {message.text}
           {/* Bubble tail — rotated square clipped to look like a triangle */}
           <span
             aria-hidden="true"
-            className="absolute -bottom-[7px] right-10 w-3 h-3 bg-white border-r-2 border-b-2 border-amber-200 rotate-45"
+            className="absolute -bottom-[7px] left-10 w-3 h-3 bg-white border-r-2 border-b-2 border-amber-200 rotate-45"
           />
         </button>
       )}
