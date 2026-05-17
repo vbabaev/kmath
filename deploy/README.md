@@ -11,8 +11,9 @@ ansible-galaxy collection install ansible.posix  # used for `synchronize` (rsync
 ```
 
 SSH access: an entry `Host kmath.vbabaev.uk` with the right key must exist
-in `~/.ssh/config`. (The host was renamed to `klearn.vbabaev.uk` but the
-SSH alias kept the old name.)
+in `~/.ssh/config`. (The host was renamed to `klearn.vbabaev.uk` long ago
+but the SSH alias still uses the original name — kept intentionally so
+existing keys keep working.)
 
 ## Deploy
 

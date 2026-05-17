@@ -4,7 +4,7 @@ import { apiGet, apiPut } from './api'
 const POLL_INTERVAL_MS = 750
 
 function channelName(profileId) {
-  return `kmath:profile:${profileId}`
+  return `klearn:profile:${profileId}`
 }
 
 // One persistent BroadcastChannel per profile, shared by every subscriber

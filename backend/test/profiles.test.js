@@ -86,7 +86,7 @@ const asTest = (req) => req.set("X-Profile-Id", "test");
 
 before(async () => {
   mongo = await MongoMemoryServer.create();
-  await connectDb(mongo.getUri() + "kmath-test");
+  await connectDb(mongo.getUri() + "klearn-test");
   app = createApp({ logger: false, auth: "dev" });
 });
 

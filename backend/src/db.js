@@ -8,12 +8,12 @@ export async function connectDb(url = config.mongoUrl) {
   if (db) return db;
   client = new MongoClient(url);
   await client.connect();
-  // db name is taken from the URL path; if absent, fall back to "kmath"
+  // db name is taken from the URL path; if absent, fall back to "klearn"
   let dbName;
   try {
-    dbName = new URL(url).pathname.slice(1) || "kmath";
+    dbName = new URL(url).pathname.slice(1) || "klearn";
   } catch {
-    dbName = "kmath";
+    dbName = "klearn";
   }
   db = client.db(dbName);
   // googleEmail must be unique across profiles (when set). Partial index

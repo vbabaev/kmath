@@ -1,5 +1,5 @@
 ---
-# Deploy the kmath stack to klearn.vbabaev.uk.
+# Deploy the klearn stack to klearn.vbabaev.uk.
 #
 # Flow:
 #   1. Build the frontend locally (npm run build).

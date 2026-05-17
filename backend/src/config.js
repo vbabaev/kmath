@@ -3,7 +3,7 @@ import "dotenv/config";
 export const config = {
   port: Number(process.env.PORT) || 3000,
   env: process.env.NODE_ENV ?? "development",
-  mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/kmath",
+  mongoUrl: process.env.MONGO_URL || "mongodb://localhost:27017/klearn",
   appUrl: process.env.APP_URL || "http://localhost:5173",
   sessionSecret: process.env.SESSION_SECRET || "dev-secret-change-me",
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",

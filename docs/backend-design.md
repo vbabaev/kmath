@@ -1,4 +1,10 @@
-# KMath Backend — Design & Execution Plan
+# KLearn Backend — Design & Execution Plan
+
+> Historical design doc (project was originally named "KMath" — references to
+> `kmath.*` localStorage keys, `kmath-backup-*.json` files, and the `kmath`
+> MongoDB database describe the pre-rename state. The live system now uses
+> `klearn.*` everywhere; see CLAUDE.md for current behaviour.)
+
 
 > Replace localStorage with a MongoDB-backed Node.js API. Three-container deployment (frontend, backend, db) behind Caddy at `klearn.vbabaev.uk`. Google OAuth gated by a local allowlist arrives in a later phase.
 

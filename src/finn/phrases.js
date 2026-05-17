@@ -24,7 +24,7 @@ export const PHRASES = {
   ],
 
   greetingNoName: [
-    "Hi there! Welcome to KMath!",
+    "Hi there! Welcome to KLearn!",
     "Hey friend! Ready for a brain workout?",
     "Hello! Who's playing today?",
     "Welcome! Let's learn something cool.",

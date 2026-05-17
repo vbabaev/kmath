@@ -241,7 +241,7 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
         {/* Header */}
         <div className="text-center mb-6">
           <div className="text-6xl mb-3">🧮</div>
-          <h1 className="text-4xl font-bold text-indigo-700 mb-1">KMath</h1>
+          <h1 className="text-4xl font-bold text-indigo-700 mb-1">KLearn</h1>
           <p className="text-gray-400 text-base">Practice, learn, level up</p>
         </div>
 

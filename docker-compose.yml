@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:7
-    container_name: kmath-mongo
+    container_name: klearn-mongo
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
@@ -10,7 +10,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: kmath-backend
+    container_name: klearn-backend
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -21,7 +21,7 @@ services:
 
   frontend:
     image: caddy:2
-    container_name: kmath-frontend
+    container_name: klearn-frontend
     restart: unless-stopped
     ports:
       - "80:80"

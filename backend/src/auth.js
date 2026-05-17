@@ -16,7 +16,7 @@ function isAdult(role) {
   return ADULT_ROLES.has(role);
 }
 
-const SESSION_COOKIE = "kmath.sid";
+const SESSION_COOKIE = "klearn.sid";
 
 export function configureAuth(app, { mode = "session" } = {}) {
   if (mode === "dev") {

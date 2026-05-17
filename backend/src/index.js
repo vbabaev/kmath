@@ -6,7 +6,7 @@ async function main() {
   await connectDb();
   const app = createApp();
   app.listen(config.port, () => {
-    console.log(`kmath-backend listening on :${config.port}`);
+    console.log(`klearn-backend listening on :${config.port}`);
   });
 }
 
