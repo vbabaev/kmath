@@ -4,6 +4,7 @@ import {
   isAdult,
   getProfileColors,
 } from '../profiles'
+import ProfileButton from '../components/ProfileButton'
 
 const PACKAGE_ORDER = ['15min', '60min']
 
@@ -106,7 +107,7 @@ function StudentPackageRow({ pkg }) {
   )
 }
 
-function StudentShop({ profile, onBack, onBuy }) {
+function StudentShop({ profile, onBack, onBuy, onProfileClick }) {
   const [pending, setPending] = useState(null) // package type awaiting confirmation
   const [toast, setToast] = useState(null)
   const balance = profile.points ?? 0
@@ -145,12 +146,17 @@ function StudentShop({ profile, onBack, onBuy }) {
       )}
 
       <div className="max-w-lg w-full">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3">
           <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
             ← Home
           </button>
-          <div className="text-sm text-gray-500">
-            <span className="font-bold text-indigo-600">{balance}</span> ⭐
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-500">
+              <span className="font-bold text-indigo-600">{balance}</span> ⭐
+            </div>
+            {onProfileClick && (
+              <ProfileButton profile={profile} onClick={onProfileClick} />
+            )}
           </div>
         </div>
 
@@ -218,7 +224,7 @@ function TeacherPackageRow({ pkg, studentColors, onToggle }) {
   )
 }
 
-function TeacherShop({ onBack, onToggle, studentPackages = [] }) {
+function TeacherShop({ profile, onBack, onToggle, studentPackages = [], onProfileClick }) {
   const [tab, setTab] = useState('active')
   const visible = useMemo(
     () =>
@@ -245,10 +251,13 @@ function TeacherShop({ onBack, onToggle, studentPackages = [] }) {
   return (
     <div className="min-h-screen flex flex-col items-center p-6">
       <div className="max-w-lg w-full">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3">
           <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
             ← Home
           </button>
+          {onProfileClick && profile && (
+            <ProfileButton profile={profile} onClick={onProfileClick} />
+          )}
         </div>
 
         <div className="text-center mb-6">
@@ -322,9 +331,9 @@ function TeacherShop({ onBack, onToggle, studentPackages = [] }) {
   )
 }
 
-export default function Shop({ profile, studentPackages, onBack, onBuy, onToggleStatus }) {
+export default function Shop({ profile, studentPackages, onBack, onBuy, onToggleStatus, onProfileClick }) {
   if (isAdult(profile)) {
-    return <TeacherShop onBack={onBack} onToggle={onToggleStatus} studentPackages={studentPackages} />
+    return <TeacherShop profile={profile} onBack={onBack} onToggle={onToggleStatus} studentPackages={studentPackages} onProfileClick={onProfileClick} />
   }
-  return <StudentShop profile={profile} onBack={onBack} onBuy={onBuy} />
+  return <StudentShop profile={profile} onBack={onBack} onBuy={onBuy} onProfileClick={onProfileClick} />
 }

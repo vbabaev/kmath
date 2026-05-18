@@ -813,6 +813,7 @@ export default function App() {
           onBack={goHome}
           onBuy={handleBuyPackage}
           onToggleStatus={handleSetPackageStatus}
+          onProfileClick={goProfile}
         />
       )}
       <Finn />
