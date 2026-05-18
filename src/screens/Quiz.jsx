@@ -2,10 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { toProblemRef } from '../modules'
 import ProfileButton from '../components/ProfileButton'
 import { useFinn } from '../finn/FinnContext'
+import { pickPhrase } from '../finn/phrases'
 
 const POINTS_CORRECT = 10
 const POINTS_STREAK_BONUS = 5
 const PENALTY_PER_UNSOLVED = 5
+// Breather between two problems — short pause with an encouraging
+// phrase so the kid isn't context-switching at full speed.
+const INTERLUDE_MS = 3000
 
 function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
@@ -28,6 +32,11 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   const [totalAttempts, setTotalAttempts] = useState(initialState?.totalAttempts ?? 0)
   const [completedProblems, setCompletedProblems] = useState(initialState?.completedProblems ?? [])
   const [showCancel, setShowCancel] = useState(false)
+  // Interlude state: when set, a fullscreen "good job — get ready"
+  // screen overlays the quiz for INTERLUDE_MS before the next problem
+  // is interactive. `null` = no interlude active.
+  const [interlude, setInterlude] = useState(null)
+  const [interludeProgress, setInterludeProgress] = useState(false)
   const inputRef = useRef(null)
   const questionStart = useRef(Date.now())
 
@@ -153,12 +162,29 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       const currentQueue = queueRef.current
       setFeedback(null)
       setProblemAttempts(0)
-      questionStart.current = Date.now()
       setInput(currentQueue[next]?.module.defaultInput ?? '')
       if (next >= currentQueue.length) {
+        // Final problem — straight to results, no breather screen.
+        questionStart.current = Date.now()
         onFinish({ score: newScore, totalAttempts: newTotalAttempts, completedProblems: newCompleted, initialCount: problems.length })
       } else {
+        // Advance to the next problem behind a fullscreen interlude.
+        // questionStart is intentionally reset at the *end* of the
+        // breather so the 3-second pause doesn't count against the
+        // kid's solve time for the next problem.
         setIndex(next)
+        setInterlude({
+          phrase: pickPhrase('interlude', {
+            name: activeProfile?.name ?? '',
+          }),
+        })
+        setInterludeProgress(false)
+        setTimeout(() => setInterludeProgress(true), 30)
+        setTimeout(() => {
+          setInterlude(null)
+          setInterludeProgress(false)
+          questionStart.current = Date.now()
+        }, INTERLUDE_MS)
       }
     }, 900)
   }
@@ -279,6 +305,31 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           </button>
         )}
       </div>
+
+      {/* Between-problems breather — a fullscreen pause for ~3 s with
+          a random encouraging phrase. The progress bar uses a CSS
+          transition that begins on the next tick (interludeProgress
+          flips to true a moment after the overlay mounts) so the bar
+          actually animates rather than starting at 100%. */}
+      {interlude && (
+        <div className="fixed inset-0 bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center z-40 px-6">
+          <div className="text-center max-w-md w-full">
+            <div className="text-6xl mb-6 animate-bounce">✨</div>
+            <p className="text-3xl font-bold text-gray-800 mb-8 leading-snug">
+              {interlude.phrase}
+            </p>
+            <div className="h-2 bg-white/70 rounded-full overflow-hidden max-w-xs mx-auto shadow-inner">
+              <div
+                className="h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full ease-linear"
+                style={{
+                  width: interludeProgress ? '100%' : '0%',
+                  transition: `width ${INTERLUDE_MS - 30}ms linear`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel confirmation modal */}
       {showCancel && (
