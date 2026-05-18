@@ -27,6 +27,7 @@ import {
   fromProblemRef,
   toProblemRef,
   getModule,
+  getModulesByGroup,
 } from './modules'
 import { FinnProvider } from './finn/FinnContext'
 import Finn from './finn/Finn'
