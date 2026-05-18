@@ -36,7 +36,7 @@ import Finn from './finn/Finn'
 // (Profile, Shop, Picker, Login) are user-driven and don't auto-route.
 const FLOW_SCREENS = new Set(['home', 'quiz', 'results'])
 
-function freshQuizSnapshot(problems, isAssignment) {
+function freshQuizSnapshot(problems, { isAssignment = false, isInfinite = false } = {}) {
   const refs = problems.map(toProblemRef)
   return {
     problems: refs,
@@ -48,6 +48,7 @@ function freshQuizSnapshot(problems, isAssignment) {
     totalAttempts: 0,
     completedProblems: [],
     isAssignment: !!isAssignment,
+    isInfinite: !!isInfinite,
   }
 }
 
@@ -96,6 +97,7 @@ function hydrateQuizState(saved) {
     problemAttempts: saved.problemAttempts ?? 0,
     totalAttempts: saved.totalAttempts ?? 0,
     isAssignment: !!saved.isAssignment,
+    isInfinite: !!saved.isInfinite,
   }
 }
 
@@ -107,6 +109,7 @@ export default function App() {
   const [problems, setProblems] = useState([])
   const [savedQuizState, setSavedQuizState] = useState(null)
   const [isAssignmentQuiz, setIsAssignmentQuiz] = useState(false)
+  const [isInfiniteQuiz, setIsInfiniteQuiz] = useState(false)
   const [sessionResult, setSessionResult] = useState(null)
   // Mood flow (assignments only). `pendingAssignment` carries the popped
   // assignment + freshly-generated problems from start → mood-start →
@@ -185,6 +188,7 @@ export default function App() {
         setProblems(hydrated.problems)
         setSavedQuizState(hydrated)
         setIsAssignmentQuiz(hydrated.isAssignment)
+        setIsInfiniteQuiz(hydrated.isInfinite)
         setSessionResult(null)
         setQuizRemoteKey((k) => k + 1)
         setScreen('quiz')
@@ -197,6 +201,7 @@ export default function App() {
         setProblems([])
         setSavedQuizState(null)
         setIsAssignmentQuiz(false)
+        setIsInfiniteQuiz(false)
         setSessionResult(hydrated)
         setScreen('results')
       }
@@ -205,6 +210,7 @@ export default function App() {
     setProblems([])
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(false)
     setSessionResult(null)
     setScreen('home')
   }, [])
@@ -240,6 +246,7 @@ export default function App() {
       setProblems(aq.problems)
       setSavedQuizState(aq)
       setIsAssignmentQuiz(aq.isAssignment)
+      setIsInfiniteQuiz(aq.isInfinite)
       setSessionResult(null)
       setScreen('quiz')
       return
@@ -249,6 +256,7 @@ export default function App() {
       setProblems([])
       setSavedQuizState(null)
       setIsAssignmentQuiz(false)
+      setIsInfiniteQuiz(false)
       setSessionResult(lr)
       setScreen('results')
       return
@@ -256,6 +264,7 @@ export default function App() {
     setProblems([])
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(false)
     setSessionResult(null)
     setScreen('home')
   }, [])
@@ -327,7 +336,7 @@ export default function App() {
     // Write the initial snapshot (and clear any stale lastResult from a
     // previous session) in a SINGLE PUT so sibling tabs don't briefly see
     // a "Home" state between Results → Quiz on a "Play Again".
-    const snapshot = freshQuizSnapshot(generatedProblems, false)
+    const snapshot = freshQuizSnapshot(generatedProblems)
     try {
       const updated = await saveProfile({
         ...activeProfile,
@@ -343,6 +352,40 @@ export default function App() {
     setProblems(generatedProblems)
     setSavedQuizState(hydrateQuizState(snapshot))
     setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(false)
+    setSessionResult(null)
+    setScreen('quiz')
+  }
+
+  // Endless practice mode — refuses to start while assignments are
+  // queued (those have to be cleared first, same rule as Quick Quiz /
+  // Custom Mix). Seeds the queue with a single random problem from the
+  // active group; Quiz extends the queue on every correct answer.
+  async function startInfinite() {
+    if (!activeProfile) return
+    if ((activeProfile.assignments ?? []).length > 0) return
+    const groupId = activeProfile.settings?.group
+    const groupModules = getModulesByGroup(groupId)
+    if (groupModules.length === 0) return
+    const mod = groupModules[Math.floor(Math.random() * groupModules.length)]
+    const seed = [{ module: mod, problem: mod.generate() }]
+    const snapshot = freshQuizSnapshot(seed, { isInfinite: true })
+    try {
+      const updated = await saveProfile({
+        ...activeProfile,
+        activeQuiz: snapshot,
+        lastResult: null,
+      })
+      updateProfileInList(updated)
+      broadcastUpdated(updated)
+    } catch (err) {
+      console.error('startInfinite failed', err)
+      return
+    }
+    setProblems(seed)
+    setSavedQuizState(hydrateQuizState(snapshot))
+    setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(true)
     setSessionResult(null)
     setScreen('quiz')
   }
@@ -352,6 +395,12 @@ export default function App() {
     const profile = list.find((p) => p.id === activeProfileId)
     if ((profile?.assignments ?? []).length > 0) {
       routeForProfile(profile)
+      return
+    }
+    // Infinite sessions don't have a meaningful "same queue" to reuse —
+    // Play Again just kicks off a fresh infinite run.
+    if (sessionResult?.isInfinite) {
+      startInfinite()
       return
     }
     // sessionResult.completedProblems is the canonical "last quiz's
@@ -389,7 +438,7 @@ export default function App() {
       return
     }
     const { problems: generated } = pendingAssignment
-    const snapshot = freshQuizSnapshot(generated, true)
+    const snapshot = freshQuizSnapshot(generated, { isAssignment: true })
     try {
       const updated = await saveProfile({
         ...activeProfile,
@@ -443,7 +492,7 @@ export default function App() {
       return
     }
     try {
-      const updated = await logSession(activeProfile, result)
+      const updated = await logSession(activeProfile, result, isInfiniteQuiz ? { isInfinite: true } : {})
       updateProfileInList(updated)
       broadcastUpdated(updated)
     } catch (err) {
@@ -451,7 +500,11 @@ export default function App() {
     }
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
-    setSessionResult(result)
+    // sessionResult carries the isInfinite flag forward so Play Again
+    // restarts in the right mode (Results doesn't know about modes).
+    const finalResult = isInfiniteQuiz ? { ...result, isInfinite: true } : result
+    setIsInfiniteQuiz(false)
+    setSessionResult(finalResult)
     setScreen('results')
   }
 
@@ -501,6 +554,7 @@ export default function App() {
     setProblems([])
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(false)
     setSessionResult(null)
     setScreen('home')
   }
@@ -523,6 +577,7 @@ export default function App() {
     setProblems([])
     setSavedQuizState(null)
     setIsAssignmentQuiz(false)
+    setIsInfiniteQuiz(false)
     setSessionResult(null)
     setScreen('home')
   }
@@ -682,6 +737,7 @@ export default function App() {
           activeProfile={activeProfile}
           assignableStudents={assignableStudents}
           onStart={startQuiz}
+          onStartInfinite={startInfinite}
           onAssign={assignCustomMix}
           onStartAssignment={startAssignment}
           onGroupChange={changeGroup}
@@ -696,6 +752,7 @@ export default function App() {
           activeProfile={activeProfile}
           initialState={savedQuizState}
           isAssignment={isAssignmentQuiz}
+          isInfinite={isInfiniteQuiz}
           onSnapshot={onQuizSnapshot}
           onFinish={finishQuiz}
           onCancel={cancelQuiz}

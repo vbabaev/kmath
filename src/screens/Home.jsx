@@ -162,7 +162,7 @@ function QueuedAssignmentCard({ assignment, position }) {
   )
 }
 
-export default function Home({ activeProfile, assignableStudents = [], onStart, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
+export default function Home({ activeProfile, assignableStudents = [], onStart, onStartInfinite, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
   const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
@@ -302,6 +302,14 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
             >
               {teacher ? 'Custom Mix / Assign' : 'Custom Mix'}
             </button>
+            <button
+              onClick={() => setMode('infinite')}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                mode === 'infinite' ? 'bg-indigo-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              ♾️ Infinite
+            </button>
           </div>
         )}
 
@@ -324,6 +332,22 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
               )
             )}
             <p className="text-center text-gray-400 text-xs mt-2">Quick quiz uses each topic's default number of questions</p>
+          </div>
+        )}
+
+        {!hasAssignments && !isEmpty && mode === 'infinite' && (
+          <div className="bg-gradient-to-br from-violet-100 to-fuchsia-100 border-2 border-violet-300 rounded-3xl p-6 shadow-md text-center">
+            <div className="text-5xl mb-3">♾️</div>
+            <div className="font-bold text-violet-900 text-lg mb-1">Infinite Mode</div>
+            <p className="text-sm text-violet-800 mb-5 leading-snug">
+              Random questions from {activeGroupLabel}, one after another. Tap Finish whenever you want — your stars stay safe.
+            </p>
+            <button
+              onClick={onStartInfinite}
+              className="w-full bg-violet-500 hover:bg-violet-600 active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-lg cursor-pointer"
+            >
+              Start Infinite Mode →
+            </button>
           </div>
         )}
 

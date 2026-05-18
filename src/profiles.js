@@ -207,6 +207,7 @@ function buildSessionEntry(result, profile, extras = {}) {
     problems: result.completedProblems.map(serializeProblem),
   }
   if (extras.isAssignment) entry.isAssignment = true
+  if (extras.isInfinite) entry.isInfinite = true
   if (extras.moodStart) entry.moodStart = extras.moodStart
   if (extras.moodEnd) entry.moodEnd = extras.moodEnd
   return entry

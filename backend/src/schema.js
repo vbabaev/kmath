@@ -38,6 +38,7 @@ const SessionSchema = z.object({
   // Optional history fields — added in the "session history + moods"
   // release. Quiet on absence (old sessions / Quick Quiz sessions).
   isAssignment: z.boolean().optional(),
+  isInfinite: z.boolean().optional(),
   moodStart: MoodSchema.optional(),
   moodEnd: MoodSchema.optional(),
   problems: z.array(SessionProblemSchema).optional(),
@@ -92,6 +93,7 @@ export const ActiveQuizSchema = z.object({
   totalAttempts: z.number().int().nonnegative(),
   completedProblems: z.array(z.any()),
   isAssignment: z.boolean().optional(),
+  isInfinite: z.boolean().optional(),
 });
 
 // Body schema for PUT /api/profiles/:id. _id and role are intentionally
