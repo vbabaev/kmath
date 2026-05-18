@@ -340,7 +340,7 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
             <div className="text-5xl mb-3">♾️</div>
             <div className="font-bold text-violet-900 text-lg mb-1">Infinite Mode</div>
             <p className="text-sm text-violet-800 mb-5 leading-snug">
-              Random questions from {activeGroupLabel}, one after another. Tap Finish whenever you want — your stars stay safe.
+              Random questions from every topic, one after another. Tap Finish whenever you want — your stars stay safe.
             </p>
             <button
               onClick={onStartInfinite}

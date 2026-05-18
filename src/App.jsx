@@ -22,12 +22,12 @@ import {
 import { getActiveProfileId, setActiveProfileId, clearActiveProfileId } from './settings'
 import { getAuthMe, logout as apiLogout } from './auth'
 import {
+  MODULES,
   generateProblems,
   countsFromProblems,
   fromProblemRef,
   toProblemRef,
   getModule,
-  getModulesByGroup,
 } from './modules'
 import { FinnProvider } from './finn/FinnContext'
 import Finn from './finn/Finn'
@@ -360,15 +360,14 @@ export default function App() {
 
   // Endless practice mode — refuses to start while assignments are
   // queued (those have to be cleared first, same rule as Quick Quiz /
-  // Custom Mix). Seeds the queue with a single random problem from the
-  // active group; Quiz extends the queue on every correct answer.
+  // Custom Mix). Seeds the queue with a single random problem from
+  // *any* module across all groups; Quiz extends the queue on every
+  // correct answer, also drawing from the full pool.
   async function startInfinite() {
     if (!activeProfile) return
     if ((activeProfile.assignments ?? []).length > 0) return
-    const groupId = activeProfile.settings?.group
-    const groupModules = getModulesByGroup(groupId)
-    if (groupModules.length === 0) return
-    const mod = groupModules[Math.floor(Math.random() * groupModules.length)]
+    if (MODULES.length === 0) return
+    const mod = MODULES[Math.floor(Math.random() * MODULES.length)]
     const seed = [{ module: mod, problem: mod.generate() }]
     const snapshot = freshQuizSnapshot(seed, { isInfinite: true })
     try {

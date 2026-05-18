@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { toProblemRef, getModulesByGroup } from '../modules'
+import { MODULES, toProblemRef } from '../modules'
 import ProfileButton from '../components/ProfileButton'
 import { useFinn } from '../finn/FinnContext'
 import { pickPhrase } from '../finn/phrases'
@@ -130,14 +130,15 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   /** Generate the next random problem for infinite mode, biased away
    *  from the last few keys so the kid doesn't see immediate repeats.
    *  Falls back to whatever was generated last if all tries collide.
+   *  Pulls from every module across every group (school + extra +
+   *  verbal) — infinite mode intentionally ignores the kid's current
+   *  group selection so they get a true mixed bag.
    */
   function pickInfiniteNext() {
-    const groupId = activeProfile?.settings?.group
-    const groupModules = getModulesByGroup(groupId)
-    if (groupModules.length === 0) return null
+    if (MODULES.length === 0) return null
     let last = null
     for (let i = 0; i < INFINITE_PICK_TRIES; i++) {
-      const mod = groupModules[Math.floor(Math.random() * groupModules.length)]
+      const mod = MODULES[Math.floor(Math.random() * MODULES.length)]
       const prob = mod.generate()
       const k = mod.key(prob)
       last = { module: mod, problem: prob, key: k }
