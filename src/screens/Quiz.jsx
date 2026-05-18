@@ -9,7 +9,7 @@ const POINTS_STREAK_BONUS = 5
 const PENALTY_PER_UNSOLVED = 5
 // Breather between two problems — short pause with an encouraging
 // phrase so the kid isn't context-switching at full speed.
-const INTERLUDE_MS = 3000
+const INTERLUDE_MS = 1500
 
 function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
@@ -36,7 +36,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   // screen overlays the quiz for INTERLUDE_MS before the next problem
   // is interactive. `null` = no interlude active.
   const [interlude, setInterlude] = useState(null)
-  const [interludeProgress, setInterludeProgress] = useState(false)
   const inputRef = useRef(null)
   const questionStart = useRef(Date.now())
 
@@ -178,11 +177,8 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
             name: activeProfile?.name ?? '',
           }),
         })
-        setInterludeProgress(false)
-        setTimeout(() => setInterludeProgress(true), 30)
         setTimeout(() => {
           setInterlude(null)
-          setInterludeProgress(false)
           questionStart.current = Date.now()
         }, INTERLUDE_MS)
       }
@@ -306,27 +302,16 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
         )}
       </div>
 
-      {/* Between-problems breather — a fullscreen pause for ~3 s with
-          a random encouraging phrase. The progress bar uses a CSS
-          transition that begins on the next tick (interludeProgress
-          flips to true a moment after the overlay mounts) so the bar
-          actually animates rather than starting at 100%. */}
+      {/* Between-problems breather — a fullscreen pause for ~1.5 s
+          with a random encouraging phrase. No countdown / progress
+          indicator — the phrase is the whole content. */}
       {interlude && (
         <div className="fixed inset-0 bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center z-40 px-6">
           <div className="text-center max-w-md w-full">
             <div className="text-6xl mb-6 animate-bounce">✨</div>
-            <p className="text-3xl font-bold text-gray-800 mb-8 leading-snug">
+            <p className="text-3xl font-bold text-gray-800 leading-snug">
               {interlude.phrase}
             </p>
-            <div className="h-2 bg-white/70 rounded-full overflow-hidden max-w-xs mx-auto shadow-inner">
-              <div
-                className="h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full ease-linear"
-                style={{
-                  width: interludeProgress ? '100%' : '0%',
-                  transition: `width ${INTERLUDE_MS - 30}ms linear`,
-                }}
-              />
-            </div>
           </div>
         </div>
       )}
