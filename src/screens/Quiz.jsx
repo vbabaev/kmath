@@ -14,6 +14,9 @@ const INTERLUDE_MS = 1500
 // random picker doesn't immediately repeat what was just shown.
 const INFINITE_RECENT_KEYS = 15
 const INFINITE_PICK_TRIES = 30
+// Finn's "have you seen the tip?" nudge fires this long into a
+// problem if the module exposes tips and the kid hasn't opened any.
+const TIP_REMINDER_MS = 20000
 
 function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
@@ -52,6 +55,10 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
         .map(({ module, problem }) => module.key(problem)),
     ),
   )
+  // Tips reveal one at a time per problem. Modules may export an
+  // optional `tips(problem)` returning Array<{ body }>; absent or
+  // empty hides the button and the nudge timer entirely.
+  const [openTipsCount, setOpenTipsCount] = useState(0)
 
   const { module, problem } = queue[index]
   const isComplete = module.isComplete ?? defaultIsComplete
@@ -75,6 +82,16 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     inputRef.current?.focus()
   }, [index])
 
+  // Reset the tips-opened counter when moving to a new problem. The
+  // wrong-answer retry keeps the same index, so retries reuse the
+  // already-opened tips (intentional — kid shouldn't have to re-open).
+  useEffect(() => {
+    setOpenTipsCount(0)
+  }, [index])
+
+  const tipsForCurrentProblem = module.tips?.(problem) ?? []
+  const hasUnopenedTips = openTipsCount < tipsForCurrentProblem.length
+
   // Finn reacts each time the kid submits — picks a random "nice one!" /
   // "no worries" phrase. Fires on every feedback transition (including
   // wrong → null → wrong on retries), so multi-fail problems still get a
@@ -84,6 +101,20 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     if (feedback === 'correct') say('correct')
     else if (feedback === 'wrong') say('wrong')
   }, [feedback, say])
+
+  // Nudge: if the kid sits on a problem with unopened tips for
+  // TIP_REMINDER_MS, Finn pipes up with a varied "want a hint?" line.
+  // The timer resets on every problem change AND when a tip is opened
+  // (an opened tip is engagement — give the kid time with it before
+  // nagging again about the next one).
+  useEffect(() => {
+    if (!hasUnopenedTips) return undefined
+    if (feedback === 'correct') return undefined
+    const t = setTimeout(() => {
+      say('tipReminder', { name: activeProfile?.name ?? '' })
+    }, TIP_REMINDER_MS)
+    return () => clearTimeout(t)
+  }, [index, openTipsCount, hasUnopenedTips, feedback, say, activeProfile?.name])
 
   // Live-sync write: fires on every meaningful state change (submit,
   // retry, advance) — no debounce, so other tabs / devices see the new
@@ -317,6 +348,25 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           )}
         </p>
 
+        {/* "Show a tip" button — right-aligned, shown only when the
+            module exposes tips and at least one is still unopened. */}
+        {tipsForCurrentProblem.length > 0 && hasUnopenedTips && (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={() => setOpenTipsCount((c) => c + 1)}
+              className="text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 font-semibold text-sm px-3 py-1.5 rounded-full cursor-pointer"
+            >
+              💡 Show a tip
+              {tipsForCurrentProblem.length > 1 && (
+                <span className="ml-1 text-amber-700">
+                  ({openTipsCount + 1} / {tipsForCurrentProblem.length})
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Question card */}
         <div
           className={`rounded-3xl p-8 text-center mb-6 shadow-md transition-colors duration-300 ${
@@ -345,6 +395,20 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
             </p>
           )}
         </div>
+
+        {/* Revealed tips — stacked between the question and the input
+            in the order they were opened. */}
+        {tipsForCurrentProblem.slice(0, openTipsCount).map((tip, i) => (
+          <div
+            key={i}
+            className="mb-3 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 text-gray-800 text-sm leading-relaxed"
+          >
+            <div className="font-semibold text-amber-800 text-xs uppercase tracking-wide mb-1">
+              💡 Tip{tipsForCurrentProblem.length > 1 ? ` ${i + 1} / ${tipsForCurrentProblem.length}` : ''}
+            </div>
+            <div>{tip.body}</div>
+          </div>
+        ))}
 
         {/* Input — custom per module or default text */}
         {module.Input ? (

@@ -172,6 +172,24 @@ export const PHRASES = {
     "{name}, what's your vibe now?",
   ],
 
+  // Fired ~20 s into a problem if the module has tips and the kid
+  // hasn't opened any yet. Keep the tone friendly — a nudge, not
+  // pressure. The kid can ignore it.
+  tipReminder: [
+    "Stuck? There's a 💡 tip up there — peek?",
+    "Tip button waiting 👆 if you want a nudge!",
+    "Hmm, take your time — tap 💡 if you need a clue.",
+    "If this one's tricky, the tip might help.",
+    "Quick hint? Tap the 💡 button!",
+    "I see a tip you haven't opened — want a peek?",
+    "Stuck for a sec? The 💡 tip might unlock it.",
+    "Try the tip — it could be the missing piece.",
+    "Pssst… there's a hint up there 💡",
+    "Need a boost? The 💡 has a clue!",
+    "Brain pause? The tip might help, {name}.",
+    "Hint available! Hit the 💡 if you want it.",
+  ],
+
   // Short, kid-friendly micro-encouragements shown on the 3-second
   // breather screen between problems. Keep them under ~30 chars so
   // they fit comfortably on a phone in a big font.
