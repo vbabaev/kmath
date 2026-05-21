@@ -30,9 +30,17 @@ function pickNonMultiple(d) {
   return rand(N_MIN, N_MAX) // safety fallback
 }
 
+// Module-level toggle that strictly alternates yes/no across calls.
+// Random initial side so consecutive quizzes don't all start with the
+// same answer; from then on every other call flips. With defaultCount
+// of 10 this gives a guaranteed exact 5/5 split per quiz, regardless
+// of how the queue ends up shuffled.
+let nextWantsDivisible = Math.random() < 0.5
+
 function generate() {
   const d = DIVISORS[rand(0, DIVISORS.length - 1)]
-  const wantDivisible = Math.random() < 0.5
+  const wantDivisible = nextWantsDivisible
+  nextWantsDivisible = !nextWantsDivisible
   const n = wantDivisible ? pickMultiple(d) : pickNonMultiple(d)
   return { n, d, answer: n % d === 0 }
 }
