@@ -140,6 +140,54 @@ function ActiveAssignmentCard({ assignment, onStart, queuedCount }) {
   )
 }
 
+/** Teacher-side row in the "Assigned tasks" management list. Shows
+ *  the student, their position in their own queue, the assignment's
+ *  module breakdown, and a × button that cancels (with a confirm).
+ */
+function SentAssignmentRow({ student, position, queueLength, assignment, onCancel }) {
+  const c = getProfileColors(student.color)
+  const tags = moduleTagsFromCounts(assignment.counts)
+  const total = assignmentTotal(assignment)
+  function handleCancel() {
+    if (
+      confirm(
+        `Cancel this assignment for ${student.name}? (${total} question${total !== 1 ? 's' : ''})`,
+      )
+    ) {
+      onCancel()
+    }
+  }
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl px-3 py-2 flex items-center gap-2">
+      <span
+        className={`${c.pill} px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 shrink-0`}
+      >
+        <span>{student.emoji}</span>
+        <span>{student.name}</span>
+      </span>
+      {queueLength > 1 && (
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">
+          #{position}
+        </span>
+      )}
+      <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+        {tags.map(({ moduleId, count }) => (
+          <ModuleTag key={moduleId} moduleId={moduleId} count={count} />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={handleCancel}
+        className="text-gray-300 hover:text-rose-600 text-lg leading-none px-2 shrink-0 cursor-pointer"
+        title="Cancel this assignment"
+        aria-label="Cancel"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 function QueuedAssignmentCard({ assignment, position }) {
   const total = assignmentTotal(assignment)
   const tags = moduleTagsFromCounts(assignment.counts)
@@ -162,7 +210,7 @@ function QueuedAssignmentCard({ assignment, position }) {
   )
 }
 
-export default function Home({ activeProfile, assignableStudents = [], onStart, onStartInfinite, onAssign, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
+export default function Home({ activeProfile, assignableStudents = [], allProfiles = [], onStart, onStartInfinite, onAssign, onCancelAssignment, onStartAssignment, onGroupChange, onProfileClick, onShopClick }) {
   const group = activeProfile.settings.group
   const [mode, setMode] = useState('list')
   const [counts, setCounts] = useState(() =>
@@ -180,6 +228,31 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
   const teacher = isAdult(activeProfile)
   const assignments = activeProfile.assignments ?? []
   const hasAssignments = assignments.length > 0
+
+  // Flat "everyone's queue, all rows" for the teacher-side management
+  // section. We need position-within-student for the #N badge, so we
+  // walk per profile and track each one's local index.
+  const sentAssignments = useMemo(() => {
+    if (!teacher) return []
+    const rows = []
+    for (const p of allProfiles) {
+      const q = p.assignments ?? []
+      q.forEach((a, idx) => {
+        rows.push({
+          student: p,
+          assignment: a,
+          position: idx + 1,
+          queueLength: q.length,
+        })
+      })
+    }
+    // Sort by createdAt asc so the oldest sits at the top — matches
+    // the FIFO order the kid actually works through them.
+    rows.sort((a, b) =>
+      (a.assignment.createdAt ?? '').localeCompare(b.assignment.createdAt ?? ''),
+    )
+    return rows
+  }, [teacher, allProfiles])
 
   // Finn greets the kid on Home mount. Re-fires when assignment count
   // changes (e.g. new task arrived from a teacher in another tab).
@@ -421,6 +494,33 @@ export default function Home({ activeProfile, assignableStudents = [], onStart, 
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Adult-only assignment manager — visible across modes so a
+            teacher can audit + cancel what they've sent without
+            switching to Custom Mix first. Hidden when there's nothing
+            queued, to keep the page tidy. */}
+        {teacher && sentAssignments.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Assigned tasks ({sentAssignments.length})
+              </span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+            <div className="flex flex-col gap-2">
+              {sentAssignments.map(({ student, assignment, position, queueLength }) => (
+                <SentAssignmentRow
+                  key={`${student.id}:${assignment.id}`}
+                  student={student}
+                  assignment={assignment}
+                  position={position}
+                  queueLength={queueLength}
+                  onCancel={() => onCancelAssignment?.(student.id, assignment.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

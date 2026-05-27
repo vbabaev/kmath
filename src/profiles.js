@@ -160,6 +160,17 @@ export async function popFirstAssignment(profile) {
   return saveProfile({ ...profile, assignments: queue.slice(1) })
 }
 
+/** Remove a single queued assignment (by id) from a student. Used by
+ *  the teacher's "Assignments you've sent" management UI. Idempotent:
+ *  removing an id that isn't there returns the profile unchanged.
+ */
+export async function removeAssignment(student, assignmentId) {
+  const queue = student.assignments ?? []
+  const next = queue.filter((a) => a.id !== assignmentId)
+  if (next.length === queue.length) return student
+  return saveProfile({ ...student, assignments: next })
+}
+
 // Serialize a live { module, problem, attempts, timeMs } row to the
 // storage shape used by `session.problems` and `lastResult.completedProblems`.
 function serializeProblem(c) {

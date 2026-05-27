@@ -14,6 +14,7 @@ import {
   buyPackage,
   setPackageStatus,
   addAssignment,
+  removeAssignment,
   popFirstAssignment,
   logSession,
   createProfile,
@@ -481,6 +482,22 @@ export default function App() {
     }
   }
 
+  /** Teacher action: cancel a queued assignment for a specific student.
+   *  Same broadcast pattern as assignCustomMix so the student's other
+   *  tabs reflect the removal immediately.
+   */
+  async function cancelAssignment(studentId, assignmentId) {
+    const student = allProfiles.find((p) => p.id === studentId)
+    if (!student) return
+    try {
+      const updated = await removeAssignment(student, assignmentId)
+      updateProfileInList(updated)
+      broadcastUpdated(updated)
+    } catch (err) {
+      console.error('cancelAssignment failed', err)
+    }
+  }
+
   // For assignments we defer the session log + Results route until
   // mood-end is picked. For Quick Quiz / Custom Mix we go straight to
   // Results without a mood prompt.
@@ -739,6 +756,8 @@ export default function App() {
           onStart={startQuiz}
           onStartInfinite={startInfinite}
           onAssign={assignCustomMix}
+          onCancelAssignment={cancelAssignment}
+          allProfiles={allProfiles}
           onStartAssignment={startAssignment}
           onGroupChange={changeGroup}
           onProfileClick={goProfile}
