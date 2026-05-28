@@ -94,6 +94,10 @@ export const ActiveQuizSchema = z.object({
   completedProblems: z.array(z.any()),
   isAssignment: z.boolean().optional(),
   isInfinite: z.boolean().optional(),
+  // Session-scoped reward multiplier accumulated from per-problem
+  // "modifier" buffs (e.g. star-boost). Defaults to 1 on a fresh
+  // quiz; never drops below 1 or resets mid-session.
+  starMultiplier: z.number().min(1).optional(),
 });
 
 // Body schema for PUT /api/profiles/:id. _id and role are intentionally

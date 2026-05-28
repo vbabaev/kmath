@@ -22,22 +22,97 @@ function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
+/** Per-problem buffs that "gamify" longer sessions. Solving a problem
+ *  that carries a modifier permanently increases the kid's session
+ *  starMultiplier by `bonus` — it never resets within a quiz, only
+ *  between quizzes. Future variants plug into this catalogue.
+ */
+const QUIZ_MODIFIERS = {
+  'star-boost': {
+    icon: '⭐',
+    label: 'Star Boost',
+    bonus: 0.1,
+    chance: 0.25,
+    description:
+      "Solve to bump your star multiplier by +0.1 for the rest of this quiz. Stacks with itself — keep the streak going!",
+  },
+}
+
+/** Roll modifiers for a brand-new queue item. Independent per kind so
+ *  a single problem can pick up multiple buffs (when more kinds exist).
+ */
+function rollModifiers() {
+  const ids = []
+  for (const [id, cfg] of Object.entries(QUIZ_MODIFIERS)) {
+    if (Math.random() < cfg.chance) ids.push(id)
+  }
+  return ids
+}
+
+/** Small icon pill with a tap/hover popover that explains the buff.
+ *  Controlled state so the popover works on touch (tap toggles) as
+ *  well as desktop hover.
+ */
+function ModifierBadge({ id }) {
+  const cfg = QUIZ_MODIFIERS[id]
+  const [open, setOpen] = useState(false)
+  if (!cfg) return null
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onBlur={() => setOpen(false)}
+        className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-xs font-semibold cursor-help active:scale-95 transition"
+        aria-label={`${cfg.label}: ${cfg.description}`}
+      >
+        <span>{cfg.icon}</span>
+        <span>+{cfg.bonus.toFixed(1)}</span>
+      </button>
+      {open && (
+        <span
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-30 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-56 leading-snug shadow-lg pointer-events-none"
+          role="tooltip"
+        >
+          <span className="block font-bold mb-0.5">{cfg.label}</span>
+          {cfg.description}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, isInfinite = false, onSnapshot, onFinish, onCancel, onProfileClick }) {
-  const startQueue = initialState?.queue ?? problems
+  // queue can grow as failed problems are re-appended; ref keeps closures fresh.
+  // On a fresh quiz (no initialState) we attach freshly-rolled modifiers to
+  // each item; on a resumed quiz the saved queue already carries them.
+  const [queue, setQueue] = useState(() =>
+    initialState?.queue ??
+    problems.map((p) => ({ ...p, modifiers: rollModifiers() })),
+  )
+  const queueRef = useRef(queue)
   const startIndex = initialState?.index ?? 0
 
-  // queue can grow as failed problems are re-appended; ref keeps closures fresh
-  const [queue, setQueue] = useState(startQueue)
-  const queueRef = useRef(startQueue)
-
   const [index, setIndex] = useState(startIndex)
-  const [input, setInput] = useState(() => startQueue[startIndex]?.module.defaultInput ?? '')
+  const [input, setInput] = useState(() => queue[startIndex]?.module.defaultInput ?? '')
   const [feedback, setFeedback] = useState(null)       // 'correct' | 'wrong' | null
   const [score, setScore] = useState(initialState?.score ?? 0)
   const [streak, setStreak] = useState(initialState?.streak ?? 0)
   const [problemAttempts, setProblemAttempts] = useState(initialState?.problemAttempts ?? 0)
   const [totalAttempts, setTotalAttempts] = useState(initialState?.totalAttempts ?? 0)
   const [completedProblems, setCompletedProblems] = useState(initialState?.completedProblems ?? [])
+  const [starMultiplier, setStarMultiplier] = useState(
+    typeof initialState?.starMultiplier === 'number' && initialState.starMultiplier >= 1
+      ? initialState.starMultiplier
+      : 1,
+  )
+  // Last problem's reward, shown in the correct-feedback flash. Tracked
+  // in state because `firstTry`/`problemAttempts` flip the moment submit
+  // runs, so deriving the breakdown from current state at render time
+  // gets the wrong values.
+  const [lastReward, setLastReward] = useState(0)
   const [showCancel, setShowCancel] = useState(false)
   // Interlude state: when set, a fullscreen "good job — get ready"
   // screen overlays the quiz for INTERLUDE_MS before the next problem
@@ -50,7 +125,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   // from the existing queue when hydrating from a saved snapshot.
   const recentKeys = useRef(
     new Set(
-      startQueue
+      queue
         .slice(-INFINITE_RECENT_KEYS)
         .map(({ module, problem }) => module.key(problem)),
     ),
@@ -146,11 +221,12 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       })),
       isAssignment,
       isInfinite,
+      starMultiplier,
     }
     const ctl = new AbortController()
     onSnapshot(snapshot, ctl.signal)
     return () => ctl.abort()
-  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment, isInfinite, onSnapshot])
+  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment, isInfinite, starMultiplier, onSnapshot])
 
   function appendToQueue(item) {
     const next = [...queueRef.current, item]
@@ -186,7 +262,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           .concat(last.key),
       )
     }
-    return { module: last.module, problem: last.problem }
+    return { module: last.module, problem: last.problem, modifiers: rollModifiers() }
   }
 
   function submit(directValue) {
@@ -203,7 +279,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     if (!correct) {
       setStreak(0)
       setFeedback('wrong')
-      appendToQueue({ module, problem: module.generate() })
+      appendToQueue({ module, problem: module.generate(), modifiers: rollModifiers() })
       setTimeout(() => {
         setFeedback(null)
         setInput(module.defaultInput ?? '')
@@ -215,7 +291,17 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     const firstTry = newProblemAttempts === 1
     const newStreak = firstTry ? streak + 1 : 0
     const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
-    const earned = firstTry ? POINTS_CORRECT + bonus : 0
+    // Apply this problem's modifier buffs first, then score with the
+    // new multiplier — solving a boost problem grants the boost on the
+    // same problem ("10 → 11", not "next time you'll get 11").
+    let nextMultiplier = starMultiplier
+    for (const modId of queue[index]?.modifiers ?? []) {
+      const cfg = QUIZ_MODIFIERS[modId]
+      if (cfg?.bonus) nextMultiplier += cfg.bonus
+    }
+    const earned = firstTry
+      ? Math.round((POINTS_CORRECT + bonus) * nextMultiplier)
+      : 0
     const newScore = score + earned
     // We snapshot `problem` here so the session history can later re-render
     // the exact question the kid saw (used by the History detail page).
@@ -233,6 +319,8 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     setScore(newScore)
     setStreak(newStreak)
     setCompletedProblems(newCompleted)
+    setLastReward(earned)
+    if (nextMultiplier !== starMultiplier) setStarMultiplier(nextMultiplier)
 
     setTimeout(() => {
       const next = index + 1
@@ -314,6 +402,14 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
             {streak >= 2 && (
               <span className="text-orange-500 font-bold text-sm">🔥 {streak} streak!</span>
             )}
+            {starMultiplier > 1 && (
+              <span
+                className="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm"
+                title="Session star multiplier — bumped by Star Boost problems"
+              >
+                ×{starMultiplier.toFixed(1)}
+              </span>
+            )}
             <span className="bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full text-sm">
               ⭐ {score}
             </span>
@@ -367,6 +463,17 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           </div>
         )}
 
+        {/* Modifier badges — the buffs riding along with this problem.
+            Tap/hover a badge to see what it does. Hidden during the
+            correct-feedback flash so the green card stays uncluttered. */}
+        {feedback !== 'correct' && (queue[index]?.modifiers ?? []).length > 0 && (
+          <div className="flex justify-center gap-2 mb-3">
+            {queue[index].modifiers.map((id, i) => (
+              <ModifierBadge key={i} id={id} />
+            ))}
+          </div>
+        )}
+
         {/* Question card */}
         <div
           className={`rounded-3xl p-8 text-center mb-6 shadow-md transition-colors duration-300 ${
@@ -384,9 +491,17 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           )}
           {feedback === 'correct' && (
             <p className="mt-4 text-green-600 font-semibold text-lg">
-              {firstTry
-                ? `✓ Correct! +${POINTS_CORRECT}${streak > 1 ? ` +${POINTS_STREAK_BONUS} bonus` : ''}`
-                : '✓ Correct!'}
+              ✓ Correct!
+              {lastReward > 0 && (
+                <>
+                  {' '}+{lastReward}
+                  {starMultiplier > 1 && (
+                    <span className="ml-1 text-purple-700 text-base">
+                      (×{starMultiplier.toFixed(1)})
+                    </span>
+                  )}
+                </>
+              )}
             </p>
           )}
           {feedback === 'wrong' && (

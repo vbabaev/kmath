@@ -100,6 +100,10 @@ function hydrateQuizState(saved) {
     totalAttempts: saved.totalAttempts ?? 0,
     isAssignment: !!saved.isAssignment,
     isInfinite: !!saved.isInfinite,
+    starMultiplier:
+      typeof saved.starMultiplier === 'number' && saved.starMultiplier >= 1
+        ? saved.starMultiplier
+        : 1,
   }
 }
 

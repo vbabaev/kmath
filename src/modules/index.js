@@ -102,11 +102,16 @@ export function countsFromProblems(problems) {
 // Problem objects carry a live module reference that can't be serialised, so
 // on save we swap it for `moduleId` and on load we resolve it back.
 
-export function toProblemRef({ module, problem }) {
-  return { moduleId: module.id, problem }
+export function toProblemRef({ module, problem, modifiers }) {
+  const ref = { moduleId: module.id, problem }
+  if (Array.isArray(modifiers) && modifiers.length > 0) ref.modifiers = modifiers
+  return ref
 }
 
-export function fromProblemRef({ moduleId, problem }) {
+export function fromProblemRef({ moduleId, problem, modifiers }) {
   const module = getModule(moduleId)
-  return module ? { module, problem } : null
+  if (!module) return null
+  const out = { module, problem }
+  if (Array.isArray(modifiers) && modifiers.length > 0) out.modifiers = modifiers
+  return out
 }
