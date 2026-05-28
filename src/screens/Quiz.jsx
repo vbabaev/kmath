@@ -89,7 +89,9 @@ function ModifierBadge({ id }) {
         aria-label={`${cfg.label}: ${cfg.description}`}
       >
         <span>{cfg.icon}</span>
-        <span>+{cfg.bonus.toFixed(1)}</span>
+        {typeof cfg.bonus === 'number' && (
+          <span>+{cfg.bonus.toFixed(1)}</span>
+        )}
       </button>
       {open && (
         <span
