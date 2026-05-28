@@ -39,7 +39,7 @@ function defaultIsComplete(value) {
  */
 const QUIZ_MODIFIERS = {
   'star-boost': {
-    icon: '⭐',
+    icon: '🔥',
     label: 'Star Boost',
     bonus: 0.1,
     chance: () => 0.25,
@@ -47,7 +47,7 @@ const QUIZ_MODIFIERS = {
       "Solve to bump your star multiplier by +0.1 for the rest of this quiz. Stacks with itself — keep the streak going!",
   },
   double: {
-    icon: '×2',
+    icon: '⚡',
     label: 'Double Stars',
     oneShotMultiplier: 2,
     chance: ({ prevAttempts }) => (prevAttempts > 1 ? 0.4 : 0.1),
@@ -85,12 +85,14 @@ function ModifierBadge({ id }) {
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onBlur={() => setOpen(false)}
-        className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-xs font-semibold cursor-help active:scale-95 transition"
+        className="inline-flex flex-col items-center px-2 py-1 cursor-help active:scale-95 hover:scale-110 transition-transform"
         aria-label={`${cfg.label}: ${cfg.description}`}
       >
-        <span>{cfg.icon}</span>
+        <span className="text-5xl leading-none">{cfg.icon}</span>
         {typeof cfg.bonus === 'number' && (
-          <span>+{cfg.bonus.toFixed(1)}</span>
+          <span className="text-xs font-bold text-amber-700 mt-1">
+            +{cfg.bonus.toFixed(1)}
+          </span>
         )}
       </button>
       {open && (
@@ -552,7 +554,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
                     return (
                       <span
                         key={i}
-                        className="ml-2 text-amber-600 text-base"
+                        className="ml-2 text-3xl align-middle"
                         title={cfg.label}
                       >
                         {cfg.icon}
