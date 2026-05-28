@@ -39,7 +39,7 @@ function defaultIsComplete(value) {
  */
 const QUIZ_MODIFIERS = {
   'star-boost': {
-    icon: '🔥',
+    icon: '⚡',
     label: 'Star Boost',
     bonus: 0.1,
     chance: () => 0.25,
@@ -47,7 +47,7 @@ const QUIZ_MODIFIERS = {
       "Solve to bump your star multiplier by +0.1 for the rest of this quiz. Stacks with itself — keep the streak going!",
   },
   double: {
-    icon: '⚡',
+    icon: '🔥',
     label: 'Double Stars',
     oneShotMultiplier: 2,
     chance: ({ prevAttempts }) => (prevAttempts > 1 ? 0.4 : 0.1),
@@ -92,6 +92,11 @@ function ModifierBadge({ id }) {
         {typeof cfg.bonus === 'number' && (
           <span className="text-xs font-bold text-amber-700 mt-1">
             +{cfg.bonus.toFixed(1)}
+          </span>
+        )}
+        {typeof cfg.oneShotMultiplier === 'number' && (
+          <span className="text-xs font-bold text-amber-700 mt-1">
+            ×{cfg.oneShotMultiplier}
           </span>
         )}
       </button>
