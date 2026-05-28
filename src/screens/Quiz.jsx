@@ -22,29 +22,49 @@ function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-/** Per-problem buffs that "gamify" longer sessions. Solving a problem
- *  that carries a modifier permanently increases the kid's session
- *  starMultiplier by `bonus` — it never resets within a quiz, only
- *  between quizzes. Future variants plug into this catalogue.
+/** Per-problem buffs that "gamify" longer sessions. Two effect kinds:
+ *
+ *  - `bonus`: persistent additive to the session star multiplier.
+ *    (Star Boost: +0.1, stacks, never resets within a quiz.)
+ *  - `oneShotMultiplier`: multiplied into THIS problem's reward only;
+ *    no after-effect on subsequent problems. (Double: ×2.)
+ *
+ *  Both kinds can be carried by the same problem and they compose:
+ *  the persistent bonus increases the multiplier first, then the
+ *  one-shot multiplies the final reward for this problem only.
+ *
+ *  `chance` is a function so it can depend on context (e.g. Double
+ *  bumps to 40% as a pick-me-up after a problem that took the kid
+ *  multiple attempts).
  */
 const QUIZ_MODIFIERS = {
   'star-boost': {
     icon: '⭐',
     label: 'Star Boost',
     bonus: 0.1,
-    chance: 0.25,
+    chance: () => 0.25,
     description:
       "Solve to bump your star multiplier by +0.1 for the rest of this quiz. Stacks with itself — keep the streak going!",
   },
+  double: {
+    icon: '×2',
+    label: 'Double Stars',
+    oneShotMultiplier: 2,
+    chance: ({ prevAttempts }) => (prevAttempts > 1 ? 0.4 : 0.1),
+    description:
+      'Solve to double your stars for this problem. One-shot — it does not carry over to the next problem.',
+  },
 }
 
-/** Roll modifiers for a brand-new queue item. Independent per kind so
- *  a single problem can pick up multiple buffs (when more kinds exist).
+/** Roll modifiers for a problem the kid is about to see. Independent
+ *  per kind: a single problem can pick up zero, one, or several buffs.
+ *  `prevAttempts` is the attempts count of the just-solved problem
+ *  (0 for the very first problem of the quiz).
  */
-function rollModifiers() {
+function rollProblemModifiers({ prevAttempts = 0 } = {}) {
   const ids = []
   for (const [id, cfg] of Object.entries(QUIZ_MODIFIERS)) {
-    if (Math.random() < cfg.chance) ids.push(id)
+    if (Math.random() < cfg.chance({ prevAttempts })) ids.push(id)
   }
   return ids
 }
@@ -86,12 +106,16 @@ function ModifierBadge({ id }) {
 
 export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, isInfinite = false, onSnapshot, onFinish, onCancel, onProfileClick }) {
   // queue can grow as failed problems are re-appended; ref keeps closures fresh.
-  // On a fresh quiz (no initialState) we attach freshly-rolled modifiers to
-  // each item; on a resumed quiz the saved queue already carries them.
-  const [queue, setQueue] = useState(() =>
-    initialState?.queue ??
-    problems.map((p) => ({ ...p, modifiers: rollModifiers() })),
-  )
+  // On a fresh quiz (no initialState) we roll modifiers for the FIRST problem
+  // only — the rest are rolled lazily as the kid advances, so the chance for
+  // each problem reflects how the previous one went. Resumed quizzes inherit
+  // whatever modifiers were already on the saved queue.
+  const [queue, setQueue] = useState(() => {
+    if (initialState?.queue) return initialState.queue
+    return problems.map((p, i) =>
+      i === 0 ? { ...p, modifiers: rollProblemModifiers({ prevAttempts: 0 }) } : p,
+    )
+  })
   const queueRef = useRef(queue)
   const startIndex = initialState?.index ?? 0
 
@@ -113,6 +137,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   // runs, so deriving the breakdown from current state at render time
   // gets the wrong values.
   const [lastReward, setLastReward] = useState(0)
+  // Modifier ids that fired on the last solved problem — shown in the
+  // green-flash message so the kid sees the celebration ("× 2!").
+  const [lastRewardModifiers, setLastRewardModifiers] = useState([])
   const [showCancel, setShowCancel] = useState(false)
   // Interlude state: when set, a fullscreen "good job — get ready"
   // screen overlays the quiz for INTERLUDE_MS before the next problem
@@ -262,7 +289,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           .concat(last.key),
       )
     }
-    return { module: last.module, problem: last.problem, modifiers: rollModifiers() }
+    // Modifiers are rolled when the kid actually advances to this item
+    // — see the setIndex(next) block in submit().
+    return { module: last.module, problem: last.problem }
   }
 
   function submit(directValue) {
@@ -279,7 +308,10 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     if (!correct) {
       setStreak(0)
       setFeedback('wrong')
-      appendToQueue({ module, problem: module.generate(), modifiers: rollModifiers() })
+      // Modifiers are rolled lazily on advance, not at append-time —
+      // the appended copy might not be reached for a while, so its
+      // "previous problem" context isn't known yet.
+      appendToQueue({ module, problem: module.generate() })
       setTimeout(() => {
         setFeedback(null)
         setInput(module.defaultInput ?? '')
@@ -291,16 +323,20 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     const firstTry = newProblemAttempts === 1
     const newStreak = firstTry ? streak + 1 : 0
     const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
-    // Apply this problem's modifier buffs first, then score with the
-    // new multiplier — solving a boost problem grants the boost on the
-    // same problem ("10 → 11", not "next time you'll get 11").
+    // Apply this problem's modifier buffs:
+    //   - `bonus` bumps the persistent multiplier (and counts for this
+    //     problem too — boost + first try = 11 not 10).
+    //   - `oneShotMultiplier` only multiplies this problem's reward;
+    //     no carry-over to subsequent problems.
     let nextMultiplier = starMultiplier
+    let oneShot = 1
     for (const modId of queue[index]?.modifiers ?? []) {
       const cfg = QUIZ_MODIFIERS[modId]
       if (cfg?.bonus) nextMultiplier += cfg.bonus
+      if (cfg?.oneShotMultiplier) oneShot *= cfg.oneShotMultiplier
     }
     const earned = firstTry
-      ? Math.round((POINTS_CORRECT + bonus) * nextMultiplier)
+      ? Math.round((POINTS_CORRECT + bonus) * nextMultiplier * oneShot)
       : 0
     const newScore = score + earned
     // We snapshot `problem` here so the session history can later re-render
@@ -320,6 +356,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     setStreak(newStreak)
     setCompletedProblems(newCompleted)
     setLastReward(earned)
+    setLastRewardModifiers(queue[index]?.modifiers ?? [])
     if (nextMultiplier !== starMultiplier) setStarMultiplier(nextMultiplier)
 
     setTimeout(() => {
@@ -335,6 +372,18 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           appendToQueue(picked)
           currentQueue = queueRef.current
         }
+      }
+      // Roll modifiers for the upcoming problem if it hasn't been
+      // rolled yet. Pass the just-finished problem's attempt count so
+      // context-aware modifiers (Double bumps to 40% after a struggle)
+      // can react accordingly.
+      if (currentQueue[next] && currentQueue[next].modifiers === undefined) {
+        const mods = rollProblemModifiers({ prevAttempts: newProblemAttempts })
+        const updated = [...currentQueue]
+        updated[next] = { ...updated[next], modifiers: mods }
+        queueRef.current = updated
+        setQueue(updated)
+        currentQueue = updated
       }
       setFeedback(null)
       setProblemAttempts(0)
@@ -495,11 +544,25 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
               {lastReward > 0 && (
                 <>
                   {' '}+{lastReward}
-                  {starMultiplier > 1 && (
-                    <span className="ml-1 text-purple-700 text-base">
-                      (×{starMultiplier.toFixed(1)})
-                    </span>
-                  )}
+                  {lastRewardModifiers.map((id, i) => {
+                    const cfg = QUIZ_MODIFIERS[id]
+                    if (!cfg) return null
+                    return (
+                      <span
+                        key={i}
+                        className="ml-2 text-amber-600 text-base"
+                        title={cfg.label}
+                      >
+                        {cfg.icon}
+                      </span>
+                    )
+                  })}
+                  {starMultiplier > 1 &&
+                    !lastRewardModifiers.includes('star-boost') && (
+                      <span className="ml-2 text-purple-700 text-base">
+                        ×{starMultiplier.toFixed(1)}
+                      </span>
+                    )}
                 </>
               )}
             </p>
