@@ -15,6 +15,7 @@ import square from './areas/square'
 import rectangle from './areas/rectangle'
 import rectangleCutout from './rectangleCutout'
 import proportions from './word/proportions'
+import storySubtraction from './word/storySubtraction'
 import wordSplit from './verbal/wordSplit'
 import wordGap from './verbal/wordGap'
 import letterMath from './verbal/letterMath'
@@ -34,6 +35,7 @@ export const MODULES = [
   complicatedPercent,
   primeSquareCubic,
   proportions,
+  storySubtraction,
   square,
   rectangle,
   rectangleCutout,
