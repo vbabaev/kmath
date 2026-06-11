@@ -173,19 +173,19 @@ function computeStats(sessions) {
       byModule.set(id, {
         id, label,
         solved: 0, attempts: 0, totalMs: 0,
-        fastestMs: Infinity, stars: 0,
+        fastestMs: Infinity,
       })
     }
     return byModule.get(id)
   }
 
   let assignmentsCompleted = 0
-  // Per-day star totals for "best streak day".
-  const starsByDate = new Map()
+  // Per-day solved counts for "best day".
+  const solvedByDate = new Map()
 
   for (const s of sessions) {
     if (s.isAssignment) assignmentsCompleted++
-    starsByDate.set(s.date, (starsByDate.get(s.date) ?? 0) + (s.score ?? 0))
+    solvedByDate.set(s.date, (solvedByDate.get(s.date) ?? 0) + (s.completed ?? 0))
 
     // Session-level module summary (always present).
     for (const m of s.modules ?? []) {
@@ -195,16 +195,12 @@ function computeStats(sessions) {
       agg.totalMs += (m.avgTimeMs ?? 0) * (m.solved ?? 0)
     }
 
-    // Per-problem detail (new shape) — gives us fastest + stars/module.
+    // Per-problem detail (new shape) — gives us fastest.
     for (const p of s.problems ?? []) {
       const mod = getModule(p.moduleId)
       const label = mod?.label ?? p.moduleId
       const agg = ensureMod(p.moduleId, label)
       if (p.timeMs < agg.fastestMs) agg.fastestMs = p.timeMs
-      // Stars: +10 first try, +5 bonus on streak≥2. We don't have
-      // streak context per-problem, so credit just the base correct
-      // points on first try. Close enough for an at-a-glance view.
-      if (p.attempts === 1) agg.stars += 10
     }
   }
 
@@ -221,10 +217,10 @@ function computeStats(sessions) {
   const mostPlayed = moduleRows[0] ?? null
   const totalSolved = moduleRows.reduce((sum, m) => sum + m.solved, 0)
 
-  // Best day = max stars on any single date in the history.
+  // Best day = most problems solved on any single date.
   let bestDay = null
-  for (const [date, stars] of starsByDate.entries()) {
-    if (!bestDay || stars > bestDay.stars) bestDay = { date, stars }
+  for (const [date, solved] of solvedByDate.entries()) {
+    if (!bestDay || solved > bestDay.solved) bestDay = { date, solved }
   }
 
   // Recent 7-day pace — sessions completed in the last 7 local days.
@@ -272,7 +268,7 @@ function StatsSection({ sessions }) {
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
             <div className="text-xs text-gray-500">Best day</div>
             <div className="text-sm font-bold text-emerald-700 truncate">{stats.bestDay.date}</div>
-            <div className="text-xs text-gray-500">+{stats.bestDay.stars} ⭐</div>
+            <div className="text-xs text-gray-500">{stats.bestDay.solved} solved</div>
           </div>
         )}
         <div className="bg-pink-50 border border-pink-200 rounded-2xl p-3 col-span-2">
@@ -299,7 +295,6 @@ function StatsSection({ sessions }) {
                   <span>Accuracy: <strong className={m.accuracy >= 90 ? 'text-green-600' : m.accuracy >= 70 ? 'text-yellow-600' : 'text-red-500'}>{m.accuracy}%</strong></span>
                   <span>Avg: <strong className="text-gray-700">{fmtTime(m.avgMs)}</strong></span>
                   {m.fastestMs != null && <span>Fastest: <strong className="text-gray-700">{fmtTime(m.fastestMs)}</strong></span>}
-                  <span>Earned: <strong className="text-indigo-700">+{m.stars} ⭐</strong></span>
                 </div>
               </div>
             )
@@ -376,7 +371,6 @@ function HistorySection({ sessions, onViewSession }) {
                     )}
                   </div>
                 </div>
-                <div className="text-indigo-600 font-bold text-sm shrink-0">+{s.score} ⭐</div>
               </button>
             )
           })}
@@ -386,7 +380,7 @@ function HistorySection({ sessions, onViewSession }) {
   )
 }
 
-export default function Profile({ profile, canSwitch = false, canManageEmail = false, showHousehold = false, onHome, onSwitch, onShop, onLogout, onSetEmail, onViewSession }) {
+export default function Profile({ profile, canSwitch = false, canManageEmail = false, showHousehold = false, onHome, onSwitch, onLogout, onSetEmail, onViewSession }) {
   const c = getProfileColors(profile.color)
   const sessions = profile.sessions ?? []
   const totalProblems = sessions.reduce((s, ses) => s + (ses.completed ?? 0), 0)
@@ -399,9 +393,6 @@ export default function Profile({ profile, canSwitch = false, canManageEmail = f
             ← Home
           </button>
           <div className="flex items-center gap-4">
-            <button onClick={onShop} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
-              🛍️ Shop
-            </button>
             {canSwitch && (
               <button onClick={onSwitch} className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
                 Switch profile
@@ -425,10 +416,12 @@ export default function Profile({ profile, canSwitch = false, canManageEmail = f
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-md mb-4 border-2 border-gray-100 text-center">
-          <div className="text-5xl font-bold text-indigo-600 mb-1">{profile.points ?? 0}</div>
-          <div className="text-sm text-gray-500">Total Stars ⭐</div>
+          <div className="text-5xl font-bold text-indigo-600 mb-1">{totalProblems}</div>
+          <div className="text-sm text-gray-500">
+            Problem{totalProblems === 1 ? '' : 's'} solved
+          </div>
           <div className="text-xs text-gray-400 mt-2">
-            {totalProblems} problem{totalProblems === 1 ? '' : 's'} over {sessions.length} session{sessions.length === 1 ? '' : 's'}
+            Across {sessions.length} session{sessions.length === 1 ? '' : 's'}
           </div>
         </div>
 

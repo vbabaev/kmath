@@ -34,7 +34,7 @@ function buildModuleStats(completedProblems) {
 // Pure-presentational results body — used by Results screen AND by the
 // History detail page when replaying a past session.
 export function ResultsBreakdown({ result }) {
-  const { score, totalAttempts, completedProblems, initialCount } = result
+  const { totalAttempts, completedProblems, initialCount } = result
   const total = completedProblems.length
   const firstTry = completedProblems.filter((p) => p.attempts === 1).length
   const accuracy = totalAttempts === 0 ? 100 : Math.round((total / totalAttempts) * 100)
@@ -54,10 +54,6 @@ export function ResultsBreakdown({ result }) {
       {/* Global stats */}
       <div className="bg-white rounded-3xl p-6 shadow-md mb-4 border-2 border-gray-100">
         <div className="flex justify-around mb-4">
-          <div>
-            <div className="text-4xl font-bold text-indigo-600">{score}</div>
-            <div className="text-sm text-gray-500 mt-1">Stars ⭐</div>
-          </div>
           <div>
             <div className="text-4xl font-bold text-green-600">{accuracy}%</div>
             <div className="text-sm text-gray-500 mt-1">Accuracy</div>

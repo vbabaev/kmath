@@ -2,11 +2,6 @@ import { apiGet, apiPost, apiPut } from './api'
 
 // --- Constants & pure helpers ---
 
-export const SHOP_PACKAGES = {
-  '15min': { type: '15min', label: '15 iPad minutes', minutes: 15, cost: 300,  emoji: '📱' },
-  '60min': { type: '60min', label: '60 iPad minutes', minutes: 60, cost: 1100, emoji: '⏰' },
-}
-
 const COLORS = {
   indigo:  { text: 'text-indigo-600',  bgLight: 'bg-indigo-50',  border: 'border-indigo-200',  pill: 'bg-indigo-100 text-indigo-700',  swatch: 'bg-indigo-400' },
   pink:    { text: 'text-pink-600',    bgLight: 'bg-pink-50',    border: 'border-pink-200',    pill: 'bg-pink-100 text-pink-700',      swatch: 'bg-pink-400' },
@@ -44,10 +39,6 @@ export function localDateYMD(date) {
 
 function newAssignmentId() {
   return `a_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-function newPackageId() {
-  return `pkg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
 // --- Reads ---
@@ -105,45 +96,6 @@ export async function createProfile({ name, emoji, color, role, googleEmail }) {
 // the field for non-teacher requesters.
 export async function setProfileEmail(profile, googleEmail) {
   return saveProfile({ ...profile, googleEmail: googleEmail ?? null })
-}
-
-export async function buyPackage(profile, type) {
-  const spec = SHOP_PACKAGES[type]
-  if (!spec) return { ok: false, error: 'Unknown package' }
-  if (isAdult(profile)) return { ok: false, error: 'Only children can buy packages' }
-  const balance = profile.points ?? 0
-  if (balance < spec.cost) return { ok: false, error: 'Not enough stars' }
-  const pkg = {
-    id: newPackageId(),
-    type: spec.type,
-    label: spec.label,
-    minutes: spec.minutes,
-    cost: spec.cost,
-    emoji: spec.emoji,
-    createdAt: new Date().toISOString(),
-    status: 'active',
-    usedAt: null,
-  }
-  try {
-    const updated = await saveProfile({
-      ...profile,
-      points: balance - spec.cost,
-      packages: [...(profile.packages ?? []), pkg],
-    })
-    return { ok: true, profile: updated, package: pkg }
-  } catch (err) {
-    return { ok: false, error: err.message ?? 'Save failed' }
-  }
-}
-
-export async function setPackageStatus(profile, packageId, status) {
-  if (status !== 'active' && status !== 'used') return null
-  const packages = (profile.packages ?? []).map((p) =>
-    p.id === packageId
-      ? { ...p, status, usedAt: status === 'used' ? new Date().toISOString() : null }
-      : p,
-  )
-  return saveProfile({ ...profile, packages })
 }
 
 export async function addAssignment(student, assignment) {
@@ -207,7 +159,10 @@ function buildSessionEntry(result, profile, extras = {}) {
     date: localDateYMD(now),
     startedAt: now.toISOString(),
     group,
-    score: result.score,
+    // `score` is kept at 0 for back-compat with the Zod schema and
+    // older session entries on disk. The UI no longer reads it; if
+    // it's ever fully retired, drop it from SessionSchema too.
+    score: 0,
     completed: result.completedProblems.length,
     initialCount: result.initialCount,
     totalAttempts: result.totalAttempts,
@@ -232,8 +187,9 @@ export async function logSession(profile, result, extras = {}) {
   const entry = buildSessionEntry(result, profile, extras)
   // lastResult mirrors what the Results screen needs to render. Stored
   // alongside activeQuiz=null so sibling tabs/devices see the same screen.
+  // `score` is kept on the wire shape for schema compatibility (set to 0).
   const lastResult = {
-    score: result.score,
+    score: 0,
     totalAttempts: result.totalAttempts,
     initialCount: result.initialCount,
     completedProblems: result.completedProblems.map(serializeProblem),
@@ -242,7 +198,7 @@ export async function logSession(profile, result, extras = {}) {
     ...profile,
     activeQuiz: null,
     lastResult,
-    points: (profile.points ?? 0) + (entry.score ?? 0),
+    // `points` is no longer incremented — kept on the doc for back-compat.
     sessions: [...(profile.sessions ?? []), entry],
   })
 }

@@ -4,15 +4,12 @@ import Quiz from './screens/Quiz'
 import Results from './screens/Results'
 import ProfilePicker from './screens/ProfilePicker'
 import Profile from './screens/Profile'
-import Shop from './screens/Shop'
 import Login from './screens/Login'
 import MoodPicker from './screens/MoodPicker'
 import SessionDetail from './screens/SessionDetail'
 import {
   getAllProfiles,
   saveProfile,
-  buyPackage,
-  setPackageStatus,
   addAssignment,
   removeAssignment,
   popFirstAssignment,
@@ -94,16 +91,10 @@ function hydrateQuizState(saved) {
     queue,
     completedProblems,
     index: saved.index ?? 0,
-    score: saved.score ?? 0,
-    streak: saved.streak ?? 0,
     problemAttempts: saved.problemAttempts ?? 0,
     totalAttempts: saved.totalAttempts ?? 0,
     isAssignment: !!saved.isAssignment,
     isInfinite: !!saved.isInfinite,
-    starMultiplier:
-      typeof saved.starMultiplier === 'number' && saved.starMultiplier >= 1
-        ? saved.starMultiplier
-        : 1,
   }
 }
 
@@ -558,14 +549,13 @@ export default function App() {
     setScreen('results')
   }
 
-  async function cancelQuiz(penalty) {
+  async function cancelQuiz() {
     if (!activeProfile) return
     try {
       const updated = await saveProfile({
         ...activeProfile,
         activeQuiz: null,
         lastResult: null,
-        points: Math.max(0, (activeProfile.points ?? 0) - penalty),
       })
       updateProfileInList(updated)
       broadcastUpdated(updated)
@@ -636,31 +626,8 @@ export default function App() {
     setScreen('profile')
   }
 
-  async function goShop() {
-    try { await refresh() } catch {}
-    setScreen('shop')
-  }
-
   function goPicker() {
     setScreen('profilePicker')
-  }
-
-  async function handleBuyPackage(type) {
-    if (!activeProfile) return { ok: false, error: 'No active profile' }
-    const result = await buyPackage(activeProfile, type)
-    if (result.ok) updateProfileInList(result.profile)
-    return result
-  }
-
-  async function handleSetPackageStatus(studentId, packageId, status) {
-    const student = allProfiles.find((p) => p.id === studentId)
-    if (!student) return
-    try {
-      const updated = await setPackageStatus(student, packageId, status)
-      updateProfileInList(updated)
-    } catch (err) {
-      console.error('handleSetPackageStatus failed', err)
-    }
   }
 
   async function handleCreateProfile(data) {
@@ -728,13 +695,6 @@ export default function App() {
     return allProfiles.filter((p) => p.role === 'child' || p.id === activeProfile.id)
   }, [allProfiles, activeProfile])
 
-  const studentPackages = useMemo(
-    () => allProfiles
-      .filter((p) => p.role === 'child')
-      .map((student) => ({ student, packages: student.packages ?? [] })),
-    [allProfiles],
-  )
-
   if (screen === null) return null
 
   return (
@@ -765,7 +725,6 @@ export default function App() {
           onStartAssignment={startAssignment}
           onGroupChange={changeGroup}
           onProfileClick={goProfile}
-          onShopClick={goShop}
         />
       )}
       {screen === 'quiz' && (
@@ -816,7 +775,6 @@ export default function App() {
           showHousehold={isAdultUser}
           onHome={goHome}
           onSwitch={goPicker}
-          onShop={goShop}
           onLogout={handleLogout}
           onSetEmail={(email) => handleSetProfileEmail(activeProfile, email)}
           onViewSession={viewSession}
@@ -827,16 +785,6 @@ export default function App() {
           profile={activeProfile}
           sessionIdx={selectedSessionIdx}
           onBack={backToProfile}
-        />
-      )}
-      {screen === 'shop' && activeProfile && (
-        <Shop
-          profile={activeProfile}
-          studentPackages={studentPackages}
-          onBack={goHome}
-          onBuy={handleBuyPackage}
-          onToggleStatus={handleSetPackageStatus}
-          onProfileClick={goProfile}
         />
       )}
       <Finn />

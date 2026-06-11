@@ -1,19 +1,19 @@
 # KLearn — Learning App
 
-A game-like React web app for a 5th grader to practice across multiple top-level **groups** (School Math, Extra Math, Verbal Reasoning) with points, streaks, and instant feedback. More groups/modules can be added freely.
+A React web app for a 5th grader to practice across multiple top-level **groups** (School Math, Extra Math, Verbal Reasoning). Per-question correctness + per-session accuracy is the only "score" — there are no stars, no shop, no in-quiz boosters. More groups/modules can be added freely.
 
 ## Tech Stack
 - **Vite 8 + React 19 + JavaScript** (no TypeScript)
 - **Tailwind CSS v4** via `@tailwindcss/vite` plugin (installed with `--legacy-peer-deps`)
-- No router — screen state managed in `App.jsx` (`profilePicker | home | mood-start | quiz | mood-end | results | profile | sessionDetail | shop | login`)
+- No router — screen state managed in `App.jsx` (`profilePicker | home | mood-start | quiz | mood-end | results | profile | sessionDetail | login`)
 
 ## Project Structure
 ```
 src/
-  App.jsx              # Root — screen state machine + active-profile state, routes to Profile/Picker/Home/Quiz/Results/Shop
+  App.jsx              # Root — screen state machine + active-profile state, routes to Profile/Picker/Home/Quiz/Results
   main.jsx             # Entry point
   settings.js          # Thin generic wrapper over localStorage['klearn.settings'] (app-level, e.g. activeProfile)
-  profiles.js          # Profile CRUD + session logging + shop helpers (localStorage['klearn.profile.<id>'])
+  profiles.js          # Profile CRUD + session logging (localStorage['klearn.profile.<id>'])
   index.css            # Only contains: @import "tailwindcss";
   components/
     ShapeCanvas.jsx    # SVG helpers: ShapeCanvas, HDim, VDim, SHAPE_FILL, SHAPE_STROKE
@@ -57,7 +57,6 @@ src/
     Results.jsx        # Exports `ResultsBreakdown` (reused by SessionDetail) + the screen wrapper with Play Again / Home
     SessionDetail.jsx  # Re-renders a past session via ResultsBreakdown by hydrating session.problems back into module refs
     MoodPicker.jsx     # 5-emoji-card picker; rendered on the `mood-start` and `mood-end` screens around assignments
-    Shop.jsx           # Student: buy 15/60-min iPad packages with stars. Teacher: view/toggle packages per student.
 ```
 
 ## Groups & Subgroups
@@ -72,7 +71,7 @@ src/
 - `ensureSeeded()` (called from `App.jsx` on mount) creates any missing profiles and migrates a legacy top-level `settings.group` into Dad's profile.
 - **Storage layout:**
   - `localStorage['klearn.settings']` → `{ activeProfile: '<id>' | null }` — app-level only.
-  - `localStorage['klearn.profile.<id>']` → `{ id, name, emoji, color, role, settings: { group }, points, sessions: [], packages: [], activeQuiz?, assignments? }`.
+  - `localStorage['klearn.profile.<id>']` → `{ id, name, emoji, color, role, settings: { group }, sessions: [], activeQuiz?, assignments?, points?, packages? }`. `points` and `packages` are legacy fields kept on disk for back-compat with profiles created before the stars/shop removal; the UI never reads them, but the backend's Zod schema still validates them as part of the PUT body, so they stay around as `0` / `[]`.
 - **Role + group:** profiles now belong to a **household group** (a separate `groups` collection in Mongo). Each profile carries `groupId` plus one of three roles: `'owner'`, `'parent'`, `'child'`. Owner is the household creator (set by the bootstrap-on-first-login flow); parents are invited by the owner; children are added by any adult. Helpers in `src/profiles.js`: `isOwner(profile)`, `isAdult(profile)` (owner or parent), `isChild(profile)`. **Visibility:** adults see themselves + every child in their group. Adults **cannot** open another adult's profile — not even the owner can. Children only see themselves. The owner is identified by `groups.<id>.ownerId`. To see the full household roster (incl. other adults you can't open), call `GET /api/groups/me`.
 - **`activeQuiz`** (optional) — snapshot of an in-progress quiz for F5 / tab-close recovery:
   ```js
@@ -105,7 +104,7 @@ src/
     moodEnd?:   'great'|'good'|'okay'|'meh'|'sad',  // mood captured after quiz
     problems?: [{ moduleId, problem, attempts, timeMs }] }   // per-problem replay payload
   ```
-  Sessions are append-only; `profile.points` accumulates across all sessions. All four new fields are **optional** — older sessions / Quick Quiz sessions simply omit them. The `problems` array carries the full per-problem `module.generate()` payload so `SessionDetail.jsx` can re-render the Results screen verbatim via `getModule(moduleId)`. Mood values are captured only for assignments (see "Mood flow" below); the Zod schema in `backend/src/schema.js` validates them as `z.enum(...)` and the inner `problem` payload as `z.unknown()`.
+  Sessions are append-only. `score` is kept on every session entry for schema compatibility but is always `0` since stars were removed; the UI never reads it. All four new fields are **optional** — older sessions / Quick Quiz sessions simply omit them. The `problems` array carries the full per-problem `module.generate()` payload so `SessionDetail.jsx` can re-render the Results screen verbatim via `getModule(moduleId)`. Mood values are captured only for assignments (see "Mood flow" below); the Zod schema in `backend/src/schema.js` validates them as `z.enum(...)` and the inner `problem` payload as `z.unknown()`.
 - **First load:** if no `activeProfile`, `App.jsx` shows `ProfilePicker`. After selection, it routes to `Home`.
 - **Switching:** top-right pill on `Home` → `Profile` screen → "Switch profile" → back to `ProfilePicker`.
 - **Heatmap:** last 30 days, bucketed by local `YYYY-MM-DD`. Intensity thresholds (problems solved that day): `0 → gray-100`, `1–3 → green-200`, `4–6 → green-400`, `7–9 → green-600`, `10+ → green-800`.
@@ -124,8 +123,8 @@ src/
   - Clicking a row routes to `'sessionDetail'`, which re-uses `ResultsBreakdown` from `Results.jsx` to render the full per-problem breakdown for that historical session. Sessions written before this release lack `problems[]`; for those the detail page shows a "no replay available" notice but still shows mood/score.
 - A **Mood trend** strip shows the last 10 mood pairs (start → end) for at-a-glance "how does she feel about assignments lately."
 - **Stats aggregates** computed in `Profile.jsx → computeStats(sessions)`:
-  - Per-module: `solved`, `accuracy %`, `avgMs`, `fastestMs` (from `problems[]`), `stars earned` (10 × first-try solves)
-  - `totalSolved`, `mostPlayed`, `assignmentsCompleted`, `bestDay` (single calendar day with the most stars), `lastWeekSessions` (sessions in the trailing 7 local days)
+  - Per-module: `solved`, `accuracy %`, `avgMs`, `fastestMs` (from `problems[]`)
+  - `totalSolved`, `mostPlayed`, `assignmentsCompleted`, `bestDay` (single calendar day with the most problems solved), `lastWeekSessions` (sessions in the trailing 7 local days)
 
 ## Module Interface
 Each module exports a default object:
@@ -157,7 +156,7 @@ Each module exports a default object:
    - `completedProblems`: `[{ module, problem, attempts, timeMs }]` — one entry per solved problem instance, **including the live `problem` payload** so the History detail page can replay the exact question
    - `initialCount`: original queue length before any retries
 - **Auto-save:** `Quiz` has a `useEffect` that writes the current state to `profile.activeQuiz` on every meaningful change (submit, retry). `App` detects `activeQuiz` on mount and on `selectProfile` via `enterProfile()` and routes straight into `Quiz` with `initialState` instead of `home`.
-- **Cancel button** (top-left of Quiz, replaces the old "← Home" link): opens a confirmation modal showing `unsolved × 5 ⭐` as the penalty; confirm calls `onCancel(penalty)` → `App.cancelQuiz` which clears `activeQuiz`, deducts the penalty via `adjustActivePoints(-penalty)` (clamped to 0), and returns to Home. No session is logged for cancelled quizzes.
+- **Cancel button** (top-left of Quiz, replaces the old "← Home" link): opens a confirmation modal noting how many problems are unsolved; confirm calls `onCancel()` → `App.cancelQuiz` which clears `activeQuiz` and returns to Home. No penalty, no session log for cancelled quizzes.
 - **Assignment mode:** when `Quiz` receives `isAssignment={true}` (set by `App.startAssignment` and preserved across F5 via `activeQuiz.isAssignment`), the Cancel button is replaced by a "📚 Assignment" badge — the student must complete the quiz or pause via F5/tab-close, but cannot cancel out. On `finishQuiz`, `activeQuiz` is cleared and a normal session is logged; the `assignment` field was already cleared on start.
 - **Profile access during a quiz:** `Quiz` renders a top-right `ProfileButton` (shared component at `components/ProfileButton.jsx`, also used by Home) that routes to the Profile page. From Profile the kid can still "Switch profile" during an assignment, but `App.goHome` is context-aware: if the current profile still has an `activeQuiz` when Home is requested, it re-enters the quiz instead of going Home — so students can't escape the assignment gate via Profile → Home. `getActiveProfile()` is read fresh from storage in `goHome` (not the React-state `activeProfile`) because Quiz's auto-save writes to storage without calling `refreshProfile`.
 
@@ -166,23 +165,6 @@ Each module exports a default object:
 - **Student UI with pending assignments:** Home's mode switcher, Quick Quiz, and Custom Mix are all hidden. An `ActiveAssignmentCard` renders the head of the queue (teacher's name, total question count, **module tags** for each non-zero module, and a big "Start Assignment →" button), followed by an "Up next" list of `QueuedAssignmentCard`s (muted style, numbered `#2`, `#3`, …). The copy reminds the kid they can't start other quizzes until the current assignment (and any queued) are done.
 - **Starting an assignment:** `App.startAssignment` reads the first element of `profile.assignments`, generates problems via `generateProblems`, **routes to the `mood-start` screen first** (no server write yet — assignment stays in the queue and `activeQuiz` is unwritten until the mood is captured). When the kid picks a mood, `onMoodStartPicked` pops the assignment from the queue, writes the fresh `activeQuiz` snapshot, and routes into Quiz with `isAssignment=true`. On completion, `finishQuiz` detects `isAssignmentQuiz` and routes to `mood-end` before logging — `onMoodEndPicked` calls `logSession(profile, result, { isAssignment, moodStart, moodEnd })`, then routes to Results.
 - **Escape-proofing follow-up:** Results' "Play Again" would otherwise start a fresh regular quiz and bypass the queue. `App.playAgain` now reads the current profile and — if `assignments.length > 0` — calls `goHome()` (which itself routes back into Quiz if an `activeQuiz` is still live, or into the assignment card on Home otherwise).
-
-## Shop (iPad-time packages)
-- **Entry points:** "🛍️ Shop" pill in top-right of `Home` (next to the profile pill) and a "🛍️ Shop" link in `Profile`'s top action row. App-level screen state is `'shop'`; `App.goShop()` increments `shopReloadKey` to force the teacher view to re-read storage on entry.
-- **Catalog** (`SHOP_PACKAGES` in `profiles.js`): currently two items, `'15min'` (300⭐) and `'60min'` (1100⭐). Add entries here and they'll appear automatically — `Shop.jsx` iterates `PACKAGE_ORDER`.
-- **Storage:** each student profile has a `packages: []` array. `ensureSeeded` backfills `packages: []` on profiles that predate the feature. Teachers have no `packages` (they can't buy).
-- **Package shape:**
-  ```js
-  { id: 'pkg_<ts>_<rand>',
-    type: '15min' | '60min',
-    label, minutes, cost, emoji,    // denormalized from SHOP_PACKAGES for display stability
-    createdAt: ISO,
-    status: 'active' | 'used',
-    usedAt: ISO | null }
-  ```
-- **Purchase flow (student):** `StudentShop` shows the current balance, two `BuyCard`s (disabled + "Need X more" caption if balance < cost), and a list of already-bought packages (newest first, active highlighted emerald, used dimmed + strike-through). Clicking a card opens `ConfirmModal` → calls `App.handleBuyPackage(type)` → `profiles.buyPackage(profileId, type)` (validates balance server-side, debits `profile.points`, appends package) → `refreshProfile()`. A green toast confirms success; `{ok:false, error}` surfaces an inline warning toast.
-- **Teacher flow:** `TeacherShop` tabs between "Active" (default) and "Used" with counts in the tab labels; within each tab, packages are grouped under each student's name (colored via their profile colors). Students with zero packages in the active tab are hidden. Each row has a toggle button — "Mark used" (active→used, sets `usedAt`) or "Restore" (used→active, clears `usedAt`). Toggle calls `App.handleSetPackageStatus(studentId, pkgId, nextStatus)` → `profiles.setPackageStatus(...)` → bumps `shopReloadKey` to re-aggregate. `getAllStudentPackages()` returns `[{ student, packages }]` across all non-teacher profiles; the screen filters/sorts in-memory.
-- **Balance checks are single-sided**: `buyPackage` refuses if `points < cost`. No refunds when the teacher toggles status — `status` is purely bookkeeping, independent of stars.
 
 ## Finn the Fennec Fox (mascot)
 - Floating bottom-right SVG character with a speech bubble; visible on every screen via `<Finn />` rendered at the root of `App.jsx`. Container is `pointer-events-none` so it never blocks underlying UI; only the bubble and mascot itself are clickable. The bubble dismisses on click.
@@ -202,14 +184,13 @@ Each module exports a default object:
 - **Quick Quiz**: 10 questions from one selected topic
 - **Custom Mix**: stepper (0–20) per topic, problems shuffled together
 
-## Game Mechanics
-- **+10 points** per correct answer (first try only)
-- **+5 bonus** on streak ≥ 2 consecutive first-try solves (resets on any wrong answer)
-- Wrong answer: stay on problem, reset streak, no points deducted
-- **Cancel penalty:** `−5 ⭐` per unsolved original problem (`PENALTY_PER_UNSOLVED` in `Quiz.jsx`) — deducted from lifetime `profile.points`, clamped at 0
-- Results: accuracy = `completedProblems.length / totalAttempts * 100%`, plus "X of N solved on first try"
-- Per-module stats: accuracy %, avg time per solve, sorted slowest-first; only shown when >1 module played
-- Ranks based on accuracy: Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%)
+## Quiz feedback
+- Wrong answer: stay on problem, no penalty; failed problems get a fresh instance re-appended to the queue so they can be retried.
+- Quiz header shows `✓ N / total` (count solved out of original queue length); infinite mode shows `✓ N` only.
+- Cancel button on a normal quiz: confirm modal warns the unsolved count, no other consequence; activeQuiz is cleared and the kid returns to Home with no session logged.
+- Results screen: accuracy = `completedProblems.length / totalAttempts * 100%`, "X of N solved on first try", total time. Per-module stats — accuracy %, avg time per solve, sorted slowest-first; only shown when >1 module played.
+- Results rank labels (purely cosmetic, accuracy-driven): Math Wizard (≥90%), Star Student (≥70%), Good Job (≥50%), Keep Practicing (<50%).
+- **Removed (was here pre-2026-06):** point-per-correct + streak bonuses, the in-quiz `QUIZ_MODIFIERS` (Star Boost / Double), session star multiplier, cancel star-penalty, and the entire `Shop.jsx` iPad-time-package surface. `profile.points` and `profile.packages` still ride along on the wire shape (Zod schema) but the UI never reads or writes them; if those fields are ever fully retired, drop them from `ProfileBodySchema` first.
 
 ## Topics Implemented
 

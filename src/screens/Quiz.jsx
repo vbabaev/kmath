@@ -4,9 +4,6 @@ import ProfileButton from '../components/ProfileButton'
 import { useFinn } from '../finn/FinnContext'
 import { pickPhrase } from '../finn/phrases'
 
-const POINTS_CORRECT = 10
-const POINTS_STREAK_BONUS = 5
-const PENALTY_PER_UNSOLVED = 5
 // Breather between two problems — short pause with an encouraging
 // phrase so the kid isn't context-switching at full speed.
 const INTERLUDE_MS = 1500
@@ -22,133 +19,18 @@ function defaultIsComplete(value) {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-/** Per-problem buffs that "gamify" longer sessions. Two effect kinds:
- *
- *  - `bonus`: persistent additive to the session star multiplier.
- *    (Star Boost: +0.1, stacks, never resets within a quiz.)
- *  - `oneShotMultiplier`: multiplied into THIS problem's reward only;
- *    no after-effect on subsequent problems. (Double: ×2.)
- *
- *  Both kinds can be carried by the same problem and they compose:
- *  the persistent bonus increases the multiplier first, then the
- *  one-shot multiplies the final reward for this problem only.
- *
- *  `chance` is a function so it can depend on context (e.g. Double
- *  bumps to 40% as a pick-me-up after a problem that took the kid
- *  multiple attempts).
- */
-const QUIZ_MODIFIERS = {
-  'star-boost': {
-    icon: '⚡',
-    label: 'Star Boost',
-    bonus: 0.1,
-    chance: () => 0.25,
-    description:
-      "Solve to bump your star multiplier by +0.1 for the rest of this quiz. Stacks with itself — keep the streak going!",
-  },
-  double: {
-    icon: '🔥',
-    label: 'Double Stars',
-    oneShotMultiplier: 2,
-    chance: ({ prevAttempts }) => (prevAttempts > 1 ? 0.4 : 0.1),
-    description:
-      'Solve to double your stars for this problem. One-shot — it does not carry over to the next problem.',
-  },
-}
-
-/** Roll modifiers for a problem the kid is about to see. Independent
- *  per kind: a single problem can pick up zero, one, or several buffs.
- *  `prevAttempts` is the attempts count of the just-solved problem
- *  (0 for the very first problem of the quiz).
- */
-function rollProblemModifiers({ prevAttempts = 0 } = {}) {
-  const ids = []
-  for (const [id, cfg] of Object.entries(QUIZ_MODIFIERS)) {
-    if (Math.random() < cfg.chance({ prevAttempts })) ids.push(id)
-  }
-  return ids
-}
-
-/** Small icon pill with a tap/hover popover that explains the buff.
- *  Controlled state so the popover works on touch (tap toggles) as
- *  well as desktop hover.
- */
-function ModifierBadge({ id }) {
-  const cfg = QUIZ_MODIFIERS[id]
-  const [open, setOpen] = useState(false)
-  if (!cfg) return null
-  return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onBlur={() => setOpen(false)}
-        className="inline-flex flex-col items-center px-2 py-1 cursor-help active:scale-95 hover:scale-110 transition-transform"
-        aria-label={`${cfg.label}: ${cfg.description}`}
-      >
-        <span className="text-5xl leading-none">{cfg.icon}</span>
-        {typeof cfg.bonus === 'number' && (
-          <span className="text-xs font-bold text-amber-700 mt-1">
-            +{cfg.bonus.toFixed(1)}
-          </span>
-        )}
-        {typeof cfg.oneShotMultiplier === 'number' && (
-          <span className="text-xs font-bold text-amber-700 mt-1">
-            ×{cfg.oneShotMultiplier}
-          </span>
-        )}
-      </button>
-      {open && (
-        <span
-          className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-30 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-56 leading-snug shadow-lg pointer-events-none"
-          role="tooltip"
-        >
-          <span className="block font-bold mb-0.5">{cfg.label}</span>
-          {cfg.description}
-        </span>
-      )}
-    </span>
-  )
-}
-
 export default function Quiz({ problems, activeProfile, initialState, isAssignment = false, isInfinite = false, onSnapshot, onFinish, onCancel, onProfileClick }) {
   // queue can grow as failed problems are re-appended; ref keeps closures fresh.
-  // On a fresh quiz (no initialState) we roll modifiers for the FIRST problem
-  // only — the rest are rolled lazily as the kid advances, so the chance for
-  // each problem reflects how the previous one went. Resumed quizzes inherit
-  // whatever modifiers were already on the saved queue.
-  const [queue, setQueue] = useState(() => {
-    if (initialState?.queue) return initialState.queue
-    return problems.map((p, i) =>
-      i === 0 ? { ...p, modifiers: rollProblemModifiers({ prevAttempts: 0 }) } : p,
-    )
-  })
+  const [queue, setQueue] = useState(() => initialState?.queue ?? problems)
   const queueRef = useRef(queue)
   const startIndex = initialState?.index ?? 0
 
   const [index, setIndex] = useState(startIndex)
   const [input, setInput] = useState(() => queue[startIndex]?.module.defaultInput ?? '')
   const [feedback, setFeedback] = useState(null)       // 'correct' | 'wrong' | null
-  const [score, setScore] = useState(initialState?.score ?? 0)
-  const [streak, setStreak] = useState(initialState?.streak ?? 0)
   const [problemAttempts, setProblemAttempts] = useState(initialState?.problemAttempts ?? 0)
   const [totalAttempts, setTotalAttempts] = useState(initialState?.totalAttempts ?? 0)
   const [completedProblems, setCompletedProblems] = useState(initialState?.completedProblems ?? [])
-  const [starMultiplier, setStarMultiplier] = useState(
-    typeof initialState?.starMultiplier === 'number' && initialState.starMultiplier >= 1
-      ? initialState.starMultiplier
-      : 1,
-  )
-  // Last problem's reward, shown in the correct-feedback flash. Tracked
-  // in state because `firstTry`/`problemAttempts` flip the moment submit
-  // runs, so deriving the breakdown from current state at render time
-  // gets the wrong values.
-  const [lastReward, setLastReward] = useState(0)
-  // Modifier ids that fired on the last solved problem — shown in the
-  // green-flash message so the kid sees the celebration ("× 2!").
-  const [lastRewardModifiers, setLastRewardModifiers] = useState([])
   const [showCancel, setShowCancel] = useState(false)
   // Interlude state: when set, a fullscreen "good job — get ready"
   // screen overlays the quiz for INTERLUDE_MS before the next problem
@@ -245,8 +127,11 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       problems: problems.map(toProblemRef),
       queue: queue.map(toProblemRef),
       index,
-      score,
-      streak,
+      // `score` and `streak` are persisted as 0 to satisfy the backend
+      // Zod schema's `int.nonneg` shape on activeQuiz — they're no
+      // longer meaningful since stars were removed.
+      score: 0,
+      streak: 0,
       problemAttempts,
       totalAttempts,
       completedProblems: completedProblems.map((c) => ({
@@ -257,12 +142,11 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       })),
       isAssignment,
       isInfinite,
-      starMultiplier,
     }
     const ctl = new AbortController()
     onSnapshot(snapshot, ctl.signal)
     return () => ctl.abort()
-  }, [problems, queue, index, score, streak, problemAttempts, totalAttempts, completedProblems, isAssignment, isInfinite, starMultiplier, onSnapshot])
+  }, [problems, queue, index, problemAttempts, totalAttempts, completedProblems, isAssignment, isInfinite, onSnapshot])
 
   function appendToQueue(item) {
     const next = [...queueRef.current, item]
@@ -298,8 +182,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           .concat(last.key),
       )
     }
-    // Modifiers are rolled when the kid actually advances to this item
-    // — see the setIndex(next) block in submit().
     return { module: last.module, problem: last.problem }
   }
 
@@ -315,11 +197,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     setTotalAttempts(newTotalAttempts)
 
     if (!correct) {
-      setStreak(0)
       setFeedback('wrong')
-      // Modifiers are rolled lazily on advance, not at append-time —
-      // the appended copy might not be reached for a while, so its
-      // "previous problem" context isn't known yet.
       appendToQueue({ module, problem: module.generate() })
       setTimeout(() => {
         setFeedback(null)
@@ -329,25 +207,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     }
 
     const timeMs = Date.now() - questionStart.current
-    const firstTry = newProblemAttempts === 1
-    const newStreak = firstTry ? streak + 1 : 0
-    const bonus = firstTry && newStreak > 1 ? POINTS_STREAK_BONUS : 0
-    // Apply this problem's modifier buffs:
-    //   - `bonus` bumps the persistent multiplier (and counts for this
-    //     problem too — boost + first try = 11 not 10).
-    //   - `oneShotMultiplier` only multiplies this problem's reward;
-    //     no carry-over to subsequent problems.
-    let nextMultiplier = starMultiplier
-    let oneShot = 1
-    for (const modId of queue[index]?.modifiers ?? []) {
-      const cfg = QUIZ_MODIFIERS[modId]
-      if (cfg?.bonus) nextMultiplier += cfg.bonus
-      if (cfg?.oneShotMultiplier) oneShot *= cfg.oneShotMultiplier
-    }
-    const earned = firstTry
-      ? Math.round((POINTS_CORRECT + bonus) * nextMultiplier * oneShot)
-      : 0
-    const newScore = score + earned
     // We snapshot `problem` here so the session history can later re-render
     // the exact question the kid saw (used by the History detail page).
     const newCompleted = [...completedProblems, { module, problem, attempts: newProblemAttempts, timeMs }]
@@ -361,12 +220,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
     }
 
     setFeedback('correct')
-    setScore(newScore)
-    setStreak(newStreak)
     setCompletedProblems(newCompleted)
-    setLastReward(earned)
-    setLastRewardModifiers(queue[index]?.modifiers ?? [])
-    if (nextMultiplier !== starMultiplier) setStarMultiplier(nextMultiplier)
 
     setTimeout(() => {
       const next = index + 1
@@ -382,25 +236,15 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           currentQueue = queueRef.current
         }
       }
-      // Roll modifiers for the upcoming problem if it hasn't been
-      // rolled yet. Pass the just-finished problem's attempt count so
-      // context-aware modifiers (Double bumps to 40% after a struggle)
-      // can react accordingly.
-      if (currentQueue[next] && currentQueue[next].modifiers === undefined) {
-        const mods = rollProblemModifiers({ prevAttempts: newProblemAttempts })
-        const updated = [...currentQueue]
-        updated[next] = { ...updated[next], modifiers: mods }
-        queueRef.current = updated
-        setQueue(updated)
-        currentQueue = updated
-      }
       setFeedback(null)
       setProblemAttempts(0)
       setInput(currentQueue[next]?.module.defaultInput ?? '')
       if (next >= currentQueue.length) {
         // Final problem — straight to results, no breather screen.
+        // `score` is kept on the result shape for back-compat with
+        // logSession / Results, always 0 since stars were removed.
         questionStart.current = Date.now()
-        onFinish({ score: newScore, totalAttempts: newTotalAttempts, completedProblems: newCompleted, initialCount: problems.length })
+        onFinish({ score: 0, totalAttempts: newTotalAttempts, completedProblems: newCompleted, initialCount: problems.length })
       } else {
         // Advance to the next problem behind a fullscreen interlude.
         // questionStart is intentionally reset at the *end* of the
@@ -424,7 +268,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
   const progress = index / queue.length
   const firstTry = problemAttempts === 0
   const unsolved = problems.length - completedProblems.length
-  const penalty = Math.max(0, unsolved) * PENALTY_PER_UNSOLVED
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
@@ -457,19 +300,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
             </button>
           )}
           <div className="flex items-center gap-2">
-            {streak >= 2 && (
-              <span className="text-orange-500 font-bold text-sm">🔥 {streak} streak!</span>
-            )}
-            {starMultiplier > 1 && (
-              <span
-                className="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm"
-                title="Session star multiplier — bumped by Star Boost problems"
-              >
-                ×{starMultiplier.toFixed(1)}
-              </span>
-            )}
             <span className="bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full text-sm">
-              ⭐ {score}
+              ✓ {completedProblems.length}
+              {!isInfinite && <span className="text-indigo-400"> / {problems.length}</span>}
             </span>
           </div>
         </div>
@@ -521,17 +354,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           </div>
         )}
 
-        {/* Modifier badges — the buffs riding along with this problem.
-            Tap/hover a badge to see what it does. Hidden during the
-            correct-feedback flash so the green card stays uncluttered. */}
-        {feedback !== 'correct' && (queue[index]?.modifiers ?? []).length > 0 && (
-          <div className="flex justify-center gap-2 mb-3">
-            {queue[index].modifiers.map((id, i) => (
-              <ModifierBadge key={i} id={id} />
-            ))}
-          </div>
-        )}
-
         {/* Question card */}
         <div
           className={`rounded-3xl p-8 text-center mb-6 shadow-md transition-colors duration-300 ${
@@ -550,30 +372,6 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
           {feedback === 'correct' && (
             <p className="mt-4 text-green-600 font-semibold text-lg">
               ✓ Correct!
-              {lastReward > 0 && (
-                <>
-                  {' '}+{lastReward}
-                  {lastRewardModifiers.map((id, i) => {
-                    const cfg = QUIZ_MODIFIERS[id]
-                    if (!cfg) return null
-                    return (
-                      <span
-                        key={i}
-                        className="ml-2 text-3xl align-middle"
-                        title={cfg.label}
-                      >
-                        {cfg.icon}
-                      </span>
-                    )
-                  })}
-                  {starMultiplier > 1 &&
-                    !lastRewardModifiers.includes('star-boost') && (
-                      <span className="ml-2 text-purple-700 text-base">
-                        ×{starMultiplier.toFixed(1)}
-                      </span>
-                    )}
-                </>
-              )}
             </p>
           )}
           {feedback === 'wrong' && (
@@ -645,9 +443,9 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
       )}
 
       {/* Cancel / finish confirmation modal. Two flavours:
-          - Normal quiz: cancel deducts stars per unsolved problem.
-          - Infinite mode: "finish" is a positive action — no penalty,
-            session is logged, Results screen follows. */}
+          - Normal quiz: confirm and lose in-progress quiz state.
+          - Infinite mode: "finish" is a positive action — session is
+            logged, Results screen follows. */}
       {showCancel && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl">
@@ -657,7 +455,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
                 <p className="text-gray-700 mb-5">
                   You've solved{' '}
                   <span className="font-bold">{completedProblems.length}</span>{' '}
-                  problem{completedProblems.length !== 1 ? 's' : ''} so far — nice work! No stars will be taken.
+                  problem{completedProblems.length !== 1 ? 's' : ''} so far — nice work!
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -671,7 +469,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
                       setShowCancel(false)
                       pendingFinalize.current = true
                       onFinish({
-                        score,
+                        score: 0,
                         totalAttempts,
                         completedProblems,
                         initialCount: completedProblems.length,
@@ -686,14 +484,10 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
             ) : (
               <>
                 <h3 className="text-xl font-bold mb-3 text-gray-800">Cancel this quiz?</h3>
-                <p className="text-gray-700 mb-2">
-                  You have <span className="font-bold">{Math.max(0, unsolved)}</span>{' '}
-                  {unsolved === 1 ? 'problem' : 'problems'} left to solve.
-                </p>
                 <p className="text-gray-700 mb-5">
-                  If you cancel now, your progress will be lost and{' '}
-                  <span className="font-bold text-red-600">−{penalty} ⭐</span>{' '}
-                  will be taken from your stars (5 per unsolved problem).
+                  You have <span className="font-bold">{Math.max(0, unsolved)}</span>{' '}
+                  {unsolved === 1 ? 'problem' : 'problems'} left to solve. If you cancel,
+                  your progress on this quiz will be lost.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -705,7 +499,7 @@ export default function Quiz({ problems, activeProfile, initialState, isAssignme
                   <button
                     onClick={() => {
                       setShowCancel(false)
-                      onCancel(penalty)
+                      onCancel()
                     }}
                     className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 cursor-pointer"
                   >
