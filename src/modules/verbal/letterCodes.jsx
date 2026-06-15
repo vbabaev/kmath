@@ -215,6 +215,65 @@ function PromptText({ text }) {
   )
 }
 
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+
+/** Reference strip the kid can glance at to count letter shifts.
+ *  Letters in the demo word are amber-tinted, letters in the demo
+ *  code are sky-tinted, and overlap (both sets) is violet — so the
+ *  positions that the rule connects pop out before counting. */
+function AlphabetStrip({ shown }) {
+  const wordSet = new Set(shown.word)
+  const codeSet = new Set(shown.code)
+  return (
+    <div className="mt-5 max-w-xl mx-auto">
+      <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 flex items-center justify-center gap-3">
+        <span>Alphabet</span>
+        <span className="inline-flex items-center gap-1 normal-case tracking-normal">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-200 border border-amber-400" />
+          <span className="font-mono">{shown.word}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 normal-case tracking-normal">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-sky-200 border border-sky-400" />
+          <span className="font-mono">{shown.code}</span>
+        </span>
+      </div>
+      <div
+        className="grid gap-0.5"
+        style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}
+      >
+        {ALPHABET.map((L, i) => {
+          const inWord = wordSet.has(L)
+          const inCode = codeSet.has(L)
+          let cls = 'border-gray-200 bg-gray-50 text-gray-700'
+          let posCls = 'text-gray-400'
+          if (inWord && inCode) {
+            cls = 'border-violet-300 bg-violet-100 text-violet-900'
+            posCls = 'text-violet-600'
+          } else if (inWord) {
+            cls = 'border-amber-300 bg-amber-100 text-amber-900'
+            posCls = 'text-amber-700'
+          } else if (inCode) {
+            cls = 'border-sky-300 bg-sky-100 text-sky-900'
+            posCls = 'text-sky-700'
+          }
+          return (
+            <div key={L} className={`rounded border py-0.5 text-center ${cls}`}>
+              <div className="font-mono font-bold text-sm md:text-base leading-tight">
+                {L}
+              </div>
+              <div
+                className={`text-[9px] font-medium tabular-nums leading-tight ${posCls}`}
+              >
+                {i + 1}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function View({ problem }) {
   const { shown, prompt, direction } = problem
   return (
@@ -227,6 +286,7 @@ function View({ problem }) {
         what is the {direction === 'encode' ? 'code' : 'word'} for{' '}
         <PromptText text={prompt.input} />?
       </div>
+      <AlphabetStrip shown={shown} />
     </div>
   )
 }
@@ -245,6 +305,7 @@ function CorrectView({ problem }) {
       <div className="inline-block px-6 py-3 rounded-2xl bg-green-100 border-2 border-green-400 text-green-700 font-bold text-3xl font-mono tracking-wider animate-[bounce_0.7s_ease-out]">
         {answer}
       </div>
+      <AlphabetStrip shown={shown} />
     </div>
   )
 }
