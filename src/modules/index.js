@@ -19,6 +19,7 @@ import statistics from './statistics'
 import wordSplit from './verbal/wordSplit'
 import wordGap from './verbal/wordGap'
 import letterMath from './verbal/letterMath'
+import letterCodes from './verbal/letterCodes'
 
 export const MODULES = [
   multiplication,
@@ -42,6 +43,7 @@ export const MODULES = [
   wordSplit,
   wordGap,
   letterMath,
+  letterCodes,
 ]
 
 export const GROUPS = [
