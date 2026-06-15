@@ -79,15 +79,13 @@ function letterAtOffset(letter, off) {
 
 /** Decode (code → word) — every choice has to be a real word from the
  *  bank, otherwise the kid spots the answer at a glance. We aim for
- *  2 choices starting with the answer's first letter (one being the
- *  answer itself) and 2 starting with neighbours (±1 in the alphabet,
- *  one of each side when possible). */
+ *  6 choices spread across three buckets relative to the answer's
+ *  first letter A: two at distance 0 (answer + sibling), two at
+ *  distance 1 (one A-1, one A+1), two at distance 2 (one A-2, one A+2). */
 function buildChoicesDecode(correct) {
   const length = correct.length
   const pool = length === 4 ? WORDS_4 : WORDS_5
   const first = correct[0]
-  const minusFirst = letterAtOffset(first, -1)
-  const plusFirst = letterAtOffset(first, +1)
 
   const taken = new Set([correct])
   const distractors = []
@@ -103,41 +101,50 @@ function buildChoicesDecode(correct) {
     }
     return false
   }
+  function takeWithFirst(letter) {
+    return pickOneFrom((w) => w[0] === letter)
+  }
 
-  // 1) Same-first-letter sibling.
-  pickOneFrom((w) => w[0] === first && w !== correct)
+  // Same letter sibling.
+  takeWithFirst(first)
+  // Distance-1 neighbours (one per side).
+  takeWithFirst(letterAtOffset(first, -1))
+  takeWithFirst(letterAtOffset(first, +1))
+  // Distance-2 neighbours.
+  takeWithFirst(letterAtOffset(first, -2))
+  takeWithFirst(letterAtOffset(first, +2))
 
-  // 2) Neighbours — one from each side ideally.
-  pickOneFrom((w) => w[0] === minusFirst)
-  pickOneFrom((w) => w[0] === plusFirst)
-
-  // Fallbacks: any remaining neighbour, then any same-first-letter
-  // sibling, then any same-length word in the bank.
-  while (distractors.length < 3) {
+  // Fallbacks — a few starting letters in the bank are sparse (Q, U,
+  // X, Z). Relax to slightly farther neighbours, then to any unused
+  // same-length word in the bank.
+  while (distractors.length < 5) {
     const ok =
-      pickOneFrom((w) => w[0] === minusFirst || w[0] === plusFirst) ||
-      pickOneFrom((w) => w[0] === first) ||
+      takeWithFirst(letterAtOffset(first, -3)) ||
+      takeWithFirst(letterAtOffset(first, +3)) ||
+      takeWithFirst(first) ||
       pickOneFrom(() => true)
     if (!ok) break
   }
 
-  return shuffle([correct, ...distractors.slice(0, 3)])
+  return shuffle([correct, ...distractors.slice(0, 5)])
 }
 
 /** Encode (word → code) — first letters cluster around the correct
- *  code's first letter. One distractor shares the first letter (so the
- *  kid can't solve the question with the first-letter shift alone),
- *  and two have ±1 first letters via a global shift bump. */
+ *  code's first letter so the kid can't solve the question by figuring
+ *  out the first-letter shift alone. Six options spread across the
+ *  same three buckets the decode side uses: 2 at distance 0, 2 at
+ *  distance 1 (±1 first letter), and 2 at distance 2 (±2 first letter). */
 function buildChoicesEncode(correct, promptInput, shifts, kind) {
   const targetShifts = shifts.slice()
   const taken = new Set([correct])
   const distractors = []
 
   function tryAdd(c) {
-    if (typeof c !== 'string' || c.length !== correct.length) return
-    if (taken.has(c)) return
+    if (typeof c !== 'string' || c.length !== correct.length) return false
+    if (taken.has(c)) return false
     taken.add(c)
     distractors.push(c)
+    return true
   }
 
   // D-same: same first letter as the correct code.
@@ -149,24 +156,35 @@ function buildChoicesEncode(correct, promptInput, shifts, kind) {
     tryAdd(applyShifts(promptInput, targetShifts.map(() => targetShifts[0])))
   } else {
     const perturb = Math.random() < 0.5 ? 1 : -1
-    tryAdd(
+    const added = tryAdd(
       applyShifts(
         promptInput,
         targetShifts.map((s, i) => (i === 0 ? s : s + perturb)),
       ),
     )
+    if (!added) {
+      tryAdd(
+        applyShifts(
+          promptInput,
+          targetShifts.map((s, i) => (i === 0 ? s : s - perturb)),
+        ),
+      )
+    }
   }
 
-  // D-plus / D-minus: shift every position by +1 or -1. First letter
-  // ends up at correct[0] ± 1.
+  // ±1 first letter via a global shift bump.
   tryAdd(applyShifts(promptInput, targetShifts.map((s) => s + 1)))
   tryAdd(applyShifts(promptInput, targetShifts.map((s) => s - 1)))
 
-  // Fallbacks — perturb a single non-first position by a small delta.
+  // ±2 first letter.
+  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s + 2)))
+  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s - 2)))
+
+  // Fallbacks — perturb a single position by a small delta.
   let safety = 0
-  while (distractors.length < 3 && safety < 50) {
+  while (distractors.length < 5 && safety < 100) {
     safety++
-    const idx = 1 + Math.floor(Math.random() * (correct.length - 1))
+    const idx = Math.floor(Math.random() * correct.length)
     const delta = pickNonZero(-3, 3)
     tryAdd(
       applyShifts(
@@ -176,7 +194,7 @@ function buildChoicesEncode(correct, promptInput, shifts, kind) {
     )
   }
 
-  return shuffle([correct, ...distractors.slice(0, 3)])
+  return shuffle([correct, ...distractors.slice(0, 5)])
 }
 
 function buildChoices(correct, promptInput, shifts, kind, direction) {
@@ -396,7 +414,7 @@ function Input({ value, onChange, onSubmit, disabled, problem }) {
     onSubmit(c)
   }
   return (
-    <div className="grid grid-cols-2 gap-2 mb-4 max-w-md mx-auto">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 max-w-2xl mx-auto">
       {problem.choices.map((c) => (
         <button
           key={c}
