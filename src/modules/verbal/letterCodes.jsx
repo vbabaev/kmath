@@ -69,13 +69,67 @@ function makeShifts(kind, length) {
   return out
 }
 
-/** 3 distractors + the correct answer, shuffled and de-duped. Strategies
- *  are picked to match the most common kid mistakes: shifting the wrong
- *  way, off-by-one count, and (for progressive) treating the rule as
- *  simple by reusing the first shift everywhere. */
-function buildChoices(correct, promptInput, shifts, kind, direction) {
-  const targetShifts =
-    direction === 'encode' ? shifts.slice() : shifts.map((s) => -s)
+/** Helpers for first-letter clustering used by both branches. */
+function alphaIndex(letter) {
+  return letter.charCodeAt(0) - 65
+}
+function letterAtOffset(letter, off) {
+  return String.fromCharCode(65 + ((alphaIndex(letter) + off + 26 * 100) % 26))
+}
+
+/** Decode (code → word) — every choice has to be a real word from the
+ *  bank, otherwise the kid spots the answer at a glance. We aim for
+ *  2 choices starting with the answer's first letter (one being the
+ *  answer itself) and 2 starting with neighbours (±1 in the alphabet,
+ *  one of each side when possible). */
+function buildChoicesDecode(correct) {
+  const length = correct.length
+  const pool = length === 4 ? WORDS_4 : WORDS_5
+  const first = correct[0]
+  const minusFirst = letterAtOffset(first, -1)
+  const plusFirst = letterAtOffset(first, +1)
+
+  const taken = new Set([correct])
+  const distractors = []
+  function take(word) {
+    if (!word || taken.has(word)) return false
+    taken.add(word)
+    distractors.push(word)
+    return true
+  }
+  function pickOneFrom(filterFn) {
+    for (const w of shuffle(pool.filter(filterFn))) {
+      if (take(w)) return true
+    }
+    return false
+  }
+
+  // 1) Same-first-letter sibling.
+  pickOneFrom((w) => w[0] === first && w !== correct)
+
+  // 2) Neighbours — one from each side ideally.
+  pickOneFrom((w) => w[0] === minusFirst)
+  pickOneFrom((w) => w[0] === plusFirst)
+
+  // Fallbacks: any remaining neighbour, then any same-first-letter
+  // sibling, then any same-length word in the bank.
+  while (distractors.length < 3) {
+    const ok =
+      pickOneFrom((w) => w[0] === minusFirst || w[0] === plusFirst) ||
+      pickOneFrom((w) => w[0] === first) ||
+      pickOneFrom(() => true)
+    if (!ok) break
+  }
+
+  return shuffle([correct, ...distractors.slice(0, 3)])
+}
+
+/** Encode (word → code) — first letters cluster around the correct
+ *  code's first letter. One distractor shares the first letter (so the
+ *  kid can't solve the question with the first-letter shift alone),
+ *  and two have ±1 first letters via a global shift bump. */
+function buildChoicesEncode(correct, promptInput, shifts, kind) {
+  const targetShifts = shifts.slice()
   const taken = new Set([correct])
   const distractors = []
 
@@ -86,35 +140,48 @@ function buildChoices(correct, promptInput, shifts, kind, direction) {
     distractors.push(c)
   }
 
-  // D1 — wrong direction (added when they should subtract, or vice versa).
-  tryAdd(applyShifts(promptInput, targetShifts.map((s) => -s)))
-
-  // D2 / D3 — off-by-one in magnitude.
-  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s + 1)))
-  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s - 1)))
-
-  // For progressive, the classic mistake is to treat it as a simple
-  // code by re-using the first (or last) shift across all positions.
+  // D-same: same first letter as the correct code.
+  //   - Progressive: re-use the first shift everywhere (the classic
+  //     "I treated it as a simple code" mistake).
+  //   - Simple: keep the first shift, perturb the remaining positions
+  //     by ±1 so the rest of the code looks different.
   if (kind === 'progressive') {
     tryAdd(applyShifts(promptInput, targetShifts.map(() => targetShifts[0])))
+  } else {
+    const perturb = Math.random() < 0.5 ? 1 : -1
     tryAdd(
       applyShifts(
         promptInput,
-        targetShifts.map(() => targetShifts[targetShifts.length - 1]),
+        targetShifts.map((s, i) => (i === 0 ? s : s + perturb)),
       ),
     )
   }
 
-  // Safety net — random shift deltas in case all the structured
-  // distractors collided with the correct answer.
+  // D-plus / D-minus: shift every position by +1 or -1. First letter
+  // ends up at correct[0] ± 1.
+  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s + 1)))
+  tryAdd(applyShifts(promptInput, targetShifts.map((s) => s - 1)))
+
+  // Fallbacks — perturb a single non-first position by a small delta.
   let safety = 0
   while (distractors.length < 3 && safety < 50) {
     safety++
-    const delta = pickNonZero(-6, 6)
-    tryAdd(applyShifts(promptInput, targetShifts.map((s) => s + delta)))
+    const idx = 1 + Math.floor(Math.random() * (correct.length - 1))
+    const delta = pickNonZero(-3, 3)
+    tryAdd(
+      applyShifts(
+        promptInput,
+        targetShifts.map((s, i) => (i === idx ? s + delta : s)),
+      ),
+    )
   }
 
   return shuffle([correct, ...distractors.slice(0, 3)])
+}
+
+function buildChoices(correct, promptInput, shifts, kind, direction) {
+  if (direction === 'decode') return buildChoicesDecode(correct)
+  return buildChoicesEncode(correct, promptInput, shifts, kind)
 }
 
 function generate() {
