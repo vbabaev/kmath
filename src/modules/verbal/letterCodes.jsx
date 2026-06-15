@@ -43,17 +43,29 @@ function fmtShift(n) {
 
 // ─── Problem generation ──────────────────────────────────────────────────────
 
-/** Build the per-position shift vector for the chosen rule kind. */
+/** Build the per-position shift vector for the chosen rule kind. Every
+ *  position's shift is capped at |shift| ≤ 8 — bigger values produce
+ *  cumulative shifts in the progressive case that are hard to count
+ *  along the alphabet strip. */
+const MAX_SHIFT = 8
+
 function makeShifts(kind, length) {
   if (kind === 'simple') {
-    const k = pickNonZero(-7, 7)
+    const k = pickNonZero(-MAX_SHIFT, MAX_SHIFT)
     return new Array(length).fill(k)
   }
   // progressive: arithmetic progression  s, s+d, s+2d, …
-  const s = pickNonZero(-5, 5)
-  const d = pick([-2, -1, 1, 2])
+  // Retry until every per-position shift fits inside the cap.
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const s = pickNonZero(-5, 5)
+    const d = pick([-2, -1, 1, 2])
+    const out = []
+    for (let i = 0; i < length; i++) out.push(s + i * d)
+    if (out.every((x) => Math.abs(x) <= MAX_SHIFT)) return out
+  }
+  // Fallback — a tame +1 progression starting from -2.
   const out = []
-  for (let i = 0; i < length; i++) out.push(s + i * d)
+  for (let i = 0; i < length; i++) out.push(-2 + i)
   return out
 }
 
