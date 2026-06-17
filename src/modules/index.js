@@ -10,6 +10,7 @@ import percent from './percent'
 import complicatedPercent from './complicatedPercent'
 import primeSquareCubic from './primeSquareCubic'
 import roman from './roman'
+import negativeNumbers from './negativeNumbers'
 import perimeters from './perimeters'
 import angles from './angles'
 import square from './areas/square'
@@ -37,6 +38,7 @@ export const MODULES = [
   complicatedPercent,
   primeSquareCubic,
   roman,
+  negativeNumbers,
   proportions,
   statistics,
   square,
