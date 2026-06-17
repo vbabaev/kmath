@@ -9,6 +9,7 @@ import rounding from './rounding'
 import percent from './percent'
 import complicatedPercent from './complicatedPercent'
 import primeSquareCubic from './primeSquareCubic'
+import roman from './roman'
 import perimeters from './perimeters'
 import angles from './angles'
 import square from './areas/square'
@@ -35,6 +36,7 @@ export const MODULES = [
   angles,
   complicatedPercent,
   primeSquareCubic,
+  roman,
   proportions,
   statistics,
   square,
